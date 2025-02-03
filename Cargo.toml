@@ -6,7 +6,8 @@ edition = "2024"
 [dependencies]
 bitflags = "2.8.0"
 image = "0.25.5"
-uuid = { version = "1.12.1", features = ["v4"] }
+log = "0.4.25"
+memfd = "0.6.4"
 wayland-backend = "0.3.8"
 wayland-client = "0.31.8"
 wayland-protocols-wlr = { version = "0.3.6", features = ["client"] }

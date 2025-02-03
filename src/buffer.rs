@@ -1,36 +1,22 @@
-use std::{fs::{self, File}, io::{BufWriter, Write}, os::fd::AsFd, path::PathBuf};
+use std::{io::Read, os::fd::AsFd};
 
-use uuid::Uuid;
-use wayland_client::{protocol::{wl_buffer::WlBuffer, wl_shm::{Format, WlShm}}, QueueHandle};
+use wayland_client::{protocol::{wl_buffer::WlBuffer, wl_shm::{Format, WlShm}, wl_shm_pool::WlShmPool}, Dispatch, QueueHandle};
 
-use crate::AppData;
-
+#[derive(Debug)]
 pub struct Buffer {
-    pub path: PathBuf,
     pub buffer: WlBuffer,
     pub width: u32,
     pub height: u32,
     pub format: Format,
+    fd: memfd::Memfd
 }
 
-impl Buffer {
+impl Buffer where {
     /// create a new buffer to store a single frame
-    pub fn new(shm: &WlShm, width: u32, height: u32, stride: u32, format: Format, handle: &QueueHandle<AppData>) -> Result<Self, Box<dyn std::error::Error>> {
-        let path = std::env::temp_dir().join(format!("hyprland-screen-picker-{}", Uuid::new_v4().to_string()));
-        let file = File::options()
-            .create(true)
-            .write(true)
-            .read(true)
-            .truncate(true)
-            .open(&path)?;
-
-        let mut writer = BufWriter::new(&file);
-        let data = vec![0_u8; (width * height * 4) as usize];
-        writer.write_all(data.as_slice())?;
-        writer.flush()?;
-
-        let fd = file.as_fd();
-        let pool = shm.create_pool(fd, (width * height * 4) as i32, handle, ());
+    pub fn new<K: Send + Sync + Clone + 'static, T: Dispatch<WlBuffer, K> + Dispatch<WlShmPool, K> + Dispatch<WlShm, K> + 'static>(shm: &WlShm, width: u32, height: u32, stride: u32, format: Format, handle: &QueueHandle<T>, udata: K) -> Result<Self, Box<dyn std::error::Error>> {
+        let mfd = memfd::MemfdOptions::default().create("buffer")?;
+        mfd.as_file().set_len((width * height * 4) as u64)?;
+        let pool = shm.create_pool(mfd.as_file().as_fd(), (width * height * 4) as i32, handle, udata.clone());
         let buffer = pool.create_buffer(
             0,
             width as i32,
@@ -38,17 +24,19 @@ impl Buffer {
             stride as i32,
             format,
             handle,
-            ()
+            udata
         );
 
         pool.destroy();
-
-        Ok(Self { path, buffer, width, height, format })
+        Ok(Self { buffer, width, height, format, fd: mfd })
     }
 
     /// read the bytes from the temporary buffer file
     pub fn get_bytes(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-        return Ok(fs::read(&self.path)?);
+        // let mut file = unsafe { File::from_raw_fd(self.fd) };
+        let mut bytes = Vec::new();
+        self.fd.as_file().read_to_end(&mut bytes)?;
+        Ok(bytes)
     }
 
     /// clear the wayland buffer and remove the temporary file
@@ -56,10 +44,6 @@ impl Buffer {
     /// should only be called after [`get_bytes`] since all data gets deleted by this function
     pub fn destroy(&self) -> Result<(), Box<dyn std::error::Error>> {
         self.buffer.destroy();
-        if self.path.exists() {
-            fs::remove_file(&self.path)?
-        }
-
         Ok(())
     }
 }
