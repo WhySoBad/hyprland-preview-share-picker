@@ -310,6 +310,7 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.8.0",
  "image",
+ "uuid",
  "wayland-backend",
  "wayland-client",
  "wayland-protocols-wlr",
@@ -929,6 +930,15 @@ name = "unicode-ident"
 version = "1.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a210d160f08b701c8721ba1c726c11662f877ea6b7094007e1ca9a1041945034"
+
+[[package]]
+name = "uuid"
+version = "1.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3758f5e68192bb96cc8f9b7e2c2cfdabb435499a28499a42f8f984092adad4b"
+dependencies = [
+ "getrandom",
+]
 
 [[package]]
 name = "v_frame"

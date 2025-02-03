@@ -1,5 +1,4 @@
-use std::{fs::File, io::{Read, Write}, os::fd::AsFd, u32};
-
+use buffer::Buffer;
 use protocols::hyprland_toplevel_export_v1::{
     hyprland_toplevel_export_frame_v1::{self, HyprlandToplevelExportFrameV1},
     hyprland_toplevel_export_manager_v1::HyprlandToplevelExportManagerV1,
@@ -7,28 +6,22 @@ use protocols::hyprland_toplevel_export_v1::{
 
 use wayland_client::{
     delegate_noop, protocol::{
-        wl_buffer::{self, WlBuffer},
-        wl_registry, wl_shm::{self, Format}, wl_shm_pool,
+        wl_buffer::{self},
+        wl_registry, wl_shm::{self}, wl_shm_pool,
     }, Connection, Dispatch
 };
 
 mod protocols;
+mod buffer;
 
 #[derive(Default)]
 struct AppData {
     shm: Option<wl_shm::WlShm>,
     manager: Option<HyprlandToplevelExportManagerV1>,
-    frame: Option<Frame>,
+    buffer: Option<Buffer>,
     ready: bool,
     failed: bool,
-    buffer_done: bool,
-}
-
-struct Frame {
-    buffer: WlBuffer,
-    height: u32,
-    width: u32,
-    format: Format
+    buffer_done: bool
 }
 
 impl Dispatch<wl_registry::WlRegistry, ()> for AppData {
@@ -82,21 +75,10 @@ impl Dispatch<HyprlandToplevelExportFrameV1, ()> for AppData {
                 println!("received buffer requirements: {format:?} width={width} height={height} stride={stride}");
                 let format = format.into_result().expect("should be valid format");
                 if let Some(shm) = &state.shm {
-                    let mut file = get_buffer_file();
-                    draw(&mut file, (height, width));
-                    let fd = file.as_fd();
-                    let pool = shm.create_pool(fd, (width * height * 4) as i32, qhandle, ());
-                    let buffer = pool.create_buffer(
-                        0,
-                        width as i32,
-                        height as i32,
-                        stride as i32,
-                        format,
-                        qhandle,
-                        ()
-                    );
-                    state.frame = Some(Frame { buffer, format, width, height });
-                    pool.destroy();
+                    match Buffer::new(shm, width, height, stride, format, qhandle) {
+                        Ok(buffer) => state.buffer = Some(buffer),
+                        Err(err) => println!("error whilst creating buffer: {err}")
+                    }
                 } else {
                     todo!("throw error when this is called without having shm");
                 }
@@ -111,6 +93,7 @@ impl Dispatch<HyprlandToplevelExportFrameV1, ()> for AppData {
             }
             hyprland_toplevel_export_frame_v1::Event::Flags { flags } => {
                 println!("received flags {flags:?}");
+                todo!("parse flags")
             }
             #[allow(unused)]
             hyprland_toplevel_export_frame_v1::Event::Ready {
@@ -177,7 +160,7 @@ fn main() {
         event_queue.blocking_dispatch(&mut app_data).expect("should dispatch");
     }
 
-    if let Some(Frame { buffer, .. }) = &app_data.frame {
+    if let Some(Buffer { buffer, .. }) = &app_data.buffer {
         println!("found buffer");
         frame.copy(buffer, 0);
         println!("sent copy request");
@@ -189,36 +172,15 @@ fn main() {
 
     if app_data.ready {
         println!("frame is ready");
-        let frame = app_data.frame.expect("should have frame information");
-        frame.buffer.destroy();
-        let mut file = File::open("out.bin").expect("should exist");
-        let bytes = read(&mut file);
-        let img = image::RgbaImage::from_vec(frame.width, frame.height, bytes).expect("should create rgba image");
+        let frame_buffer = app_data.buffer.expect("should have frame information");
+        let img = image::RgbaImage::from_vec(
+            frame_buffer.width,
+            frame_buffer.height,
+            frame_buffer.get_bytes().expect("should get bytes")
+        ).expect("should create rgba image");
         img.save("out.png").expect("should save png");
+        frame_buffer.destroy().expect("should destroy buffer");
     } else {
         println!("copy failed")
     }
-
-}
-
-fn get_buffer_file() -> File {
-    File::options().read(true).create(true).write(true).truncate(true).open("out.bin").expect("should create file")
-}
-
-fn draw(file: &mut File, (buf_x, buf_y): (u32, u32)) {
-    let mut buf = std::io::BufWriter::new(file);
-    for _ in 0..buf_y {
-        for _ in 0..buf_x {
-            buf.write_all(&[00 as u8, 00 as u8, 00 as u8, 00 as u8])
-                .unwrap();
-        }
-    }
-    buf.flush().unwrap();
-}
-
-
-fn read(file: &mut File) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    file.read_to_end(&mut bytes).expect("should read");
-    return bytes
 }
