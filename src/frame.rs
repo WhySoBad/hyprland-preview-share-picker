@@ -51,8 +51,8 @@ impl FrameManager {
         Ok(manager)
     }
 
-    /// get a single frame buffer for a window handle
-    pub fn get_frame(&mut self, window_handle: u64) -> Result<Arc<Buffer>, Box<dyn std::error::Error>> {
+    /// capture a single frame buffer for a window handle
+    pub fn capture_frame(&mut self, window_handle: u64) -> Result<Arc<Buffer>, Box<dyn std::error::Error>> {
         let &FrameStatus::Inactive = &self.status else {
             return Err(Box::from("frame manager is not in inactive status"))
         };
@@ -124,7 +124,7 @@ impl Dispatch<wl_registry::WlRegistry, ()> for FrameManager {
             } => {
                 match interface.as_str() {
                     "wl_shm" => {
-                        let shm = registry.bind(name, version, handle, ());
+                        let shm: WlShm = registry.bind(name, version, handle, ());
                         state.shm = Some(shm);
                     }
                     "hyprland_toplevel_export_manager_v1" => {
