@@ -1,7 +1,19 @@
-use std::sync::Arc;
+use std::rc::Rc;
 
-use wayland_client::{delegate_noop, protocol::{wl_buffer::WlBuffer, wl_output::{self, Mode, Subpixel, Transform, WlOutput}, wl_registry, wl_shm::WlShm, wl_shm_pool::WlShmPool}, Connection, Dispatch, EventQueue};
-use wayland_protocols_wlr::screencopy::v1::client::{zwlr_screencopy_frame_v1::{self, ZwlrScreencopyFrameV1}, zwlr_screencopy_manager_v1::ZwlrScreencopyManagerV1};
+use wayland_client::{
+    Connection, Dispatch, EventQueue, delegate_noop,
+    protocol::{
+        wl_buffer::WlBuffer,
+        wl_output::{self, Mode, Subpixel, Transform, WlOutput},
+        wl_registry,
+        wl_shm::WlShm,
+        wl_shm_pool::WlShmPool,
+    },
+};
+use wayland_protocols_wlr::screencopy::v1::client::{
+    zwlr_screencopy_frame_v1::{self, ZwlrScreencopyFrameV1},
+    zwlr_screencopy_manager_v1::ZwlrScreencopyManagerV1,
+};
 
 use crate::{buffer::Buffer, frame::FrameStatus};
 
@@ -14,7 +26,7 @@ pub struct Geometry {
     pub subpixel: Subpixel,
     pub make: String,
     pub model: String,
-    pub transform: Transform
+    pub transform: Transform,
 }
 
 #[derive(Debug, Clone)]
@@ -31,7 +43,7 @@ pub struct Output {
     pub description: Option<String>,
     pub scale: Option<i32>,
     pub mode: Option<OutputMode>,
-    pub geometry: Option<Geometry>
+    pub geometry: Option<Geometry>,
 }
 
 pub struct OutputManager {
@@ -40,7 +52,7 @@ pub struct OutputManager {
     pub outputs: Vec<(WlOutput, Output)>,
     intialized_outputs: u32,
     status: FrameStatus,
-    connection: Connection
+    connection: Connection,
 }
 
 impl OutputManager {
@@ -56,7 +68,7 @@ impl OutputManager {
             outputs: Vec::new(),
             intialized_outputs: 0,
             status: FrameStatus::Inactive,
-            connection: connection.clone()
+            connection: connection.clone(),
         };
 
         display.get_registry(&handle, ());
@@ -64,10 +76,10 @@ impl OutputManager {
         event_queue.roundtrip(&mut manager)?;
 
         if let None = manager.manager {
-            return Err(Box::from("zwlr screencopy manager v1 is not available"))
+            return Err(Box::from("zwlr screencopy manager v1 is not available"));
         }
         if let None = manager.shm {
-            return Err(Box::from("wl shm is not available"))
+            return Err(Box::from("wl shm is not available"));
         }
 
         event_queue.roundtrip(&mut manager)?;
@@ -75,9 +87,9 @@ impl OutputManager {
         Ok(manager)
     }
 
-    pub fn capture_output(&mut self, output: &WlOutput) -> Result<Arc<Buffer>, Box<dyn std::error::Error>> {
+    pub fn capture_output(&mut self, output: &WlOutput) -> Result<Rc<Buffer>, Box<dyn std::error::Error>> {
         let &FrameStatus::Inactive = &self.status else {
-            return Err(Box::from("output manager is not in inactive status"))
+            return Err(Box::from("output manager is not in inactive status"));
         };
 
         let Some(zwlr_manager) = &self.manager else {
@@ -92,9 +104,16 @@ impl OutputManager {
         self.finish_capture(zwlr_frame, &mut event_queue)
     }
 
-    pub fn capture_output_region(&mut self, output: &WlOutput, x: i32, y: i32, width: i32, height: i32) -> Result<Arc<Buffer>, Box<dyn std::error::Error>> {
+    pub fn capture_output_region(
+        &mut self,
+        output: &WlOutput,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<Rc<Buffer>, Box<dyn std::error::Error>> {
         let &FrameStatus::Inactive = &self.status else {
-            return Err(Box::from("output manager is not in inactive status"))
+            return Err(Box::from("output manager is not in inactive status"));
         };
 
         let Some(zwlr_manager) = &self.manager else {
@@ -109,7 +128,11 @@ impl OutputManager {
         self.finish_capture(zwlr_frame, &mut event_queue)
     }
 
-    fn finish_capture(&mut self, zwlr_frame: ZwlrScreencopyFrameV1, event_queue: &mut EventQueue<OutputManager>) -> Result<Arc<Buffer>, Box<dyn std::error::Error>> {
+    fn finish_capture(
+        &mut self,
+        zwlr_frame: ZwlrScreencopyFrameV1,
+        event_queue: &mut EventQueue<OutputManager>,
+    ) -> Result<Rc<Buffer>, Box<dyn std::error::Error>> {
         loop {
             if let Err(err) = event_queue.blocking_dispatch(self) {
                 self.status = FrameStatus::Inactive;
@@ -121,22 +144,22 @@ impl OutputManager {
                     zwlr_frame.destroy();
                     self.status = FrameStatus::Inactive;
                     return Ok(buffer);
-                },
+                }
                 FrameStatus::BufferDone(buffer) => {
                     zwlr_frame.copy(&buffer.buffer);
                     self.status = FrameStatus::FrameRequested(buffer.clone());
-                },
+                }
                 FrameStatus::Error(err) => {
                     let err = Box::from(format!("error during frame capture: {err}"));
                     self.status = FrameStatus::Inactive;
                     zwlr_frame.destroy();
-                    return Err(err)
+                    return Err(err);
                 }
                 FrameStatus::Failed => {
                     self.status = FrameStatus::Inactive;
                     zwlr_frame.destroy();
-                    return Err(Box::from("frame copy failed"))
-                },
+                    return Err(Box::from("frame copy failed"));
+                }
                 _ => {}
             }
         }
@@ -153,27 +176,21 @@ impl Dispatch<wl_registry::WlRegistry, ()> for OutputManager {
         handle: &wayland_client::QueueHandle<Self>,
     ) {
         match event {
-            wl_registry::Event::Global {
-                name,
-                interface,
-                version,
-            } => {
-                match interface.as_str() {
-                    "wl_shm" => {
-                        let shm: WlShm = registry.bind(name, version, handle, ());
-                        state.shm = Some(shm);
-                    }
-                    "zwlr_screencopy_manager_v1" => {
-                        let manager: ZwlrScreencopyManagerV1 = registry.bind(name, version, handle, ());
-                        state.manager = Some(manager);
-                    }
-                    "wl_output" => {
-                        let output: WlOutput = registry.bind(name, version, handle, ());
-                        state.outputs.push((output, Output::default()));
-                    }
-                    _ => {}
+            wl_registry::Event::Global { name, interface, version } => match interface.as_str() {
+                "wl_shm" => {
+                    let shm: WlShm = registry.bind(name, version, handle, ());
+                    state.shm = Some(shm);
                 }
-            }
+                "zwlr_screencopy_manager_v1" => {
+                    let manager: ZwlrScreencopyManagerV1 = registry.bind(name, version, handle, ());
+                    state.manager = Some(manager);
+                }
+                "wl_output" => {
+                    let output: WlOutput = registry.bind(name, version, handle, ());
+                    state.outputs.push((output, Output::default()));
+                }
+                _ => {}
+            },
             _ => {}
         }
     }
@@ -200,24 +217,19 @@ impl Dispatch<wl_output::WlOutput, ()> for OutputManager {
                     make,
                     model,
                     subpixel: subpixel.into_result().expect("should be valid subpixel"),
-                    transform: transform.into_result().expect("should be valid transform")
+                    transform: transform.into_result().expect("should be valid transform"),
                 };
                 output.geometry = Some(geometry);
-            },
+            }
             wl_output::Event::Mode { flags, width, height, refresh } => {
-                let mode = OutputMode {
-                    mode: flags.into_result().expect("should be valid mode"),
-                    width,
-                    height,
-                    refresh
-                };
+                let mode = OutputMode { mode: flags.into_result().expect("should be valid mode"), width, height, refresh };
                 output.mode = Some(mode)
-            },
+            }
             wl_output::Event::Scale { factor } => output.scale = Some(factor),
             wl_output::Event::Name { name } => output.name = Some(name),
             wl_output::Event::Description { description } => output.description = Some(description),
             wl_output::Event::Done => state.intialized_outputs += 1,
-            _ => {},
+            _ => {}
         }
     }
 }
@@ -239,30 +251,26 @@ impl Dispatch<ZwlrScreencopyFrameV1, ()> for OutputManager {
                 };
                 if let Some(shm) = &state.shm {
                     match Buffer::new(shm, width, height, stride, format, qhandle, ()) {
-                        Ok(buffer) => {
-                            state.status = FrameStatus::BufferDone(Arc::new(buffer))
-                        },
-                        Err(err) => {
-                            state.status = FrameStatus::Error(Box::from(format!("unable to create buffer: {err}")))
-                        }
+                        Ok(buffer) => state.status = FrameStatus::BufferDone(Rc::new(buffer)),
+                        Err(err) => state.status = FrameStatus::Error(Box::from(format!("unable to create buffer: {err}"))),
                     }
                 } else {
                     state.status = FrameStatus::Error(Box::from("buffer event is called without having shm"));
                 }
-            },
-            zwlr_screencopy_frame_v1::Event::Flags { flags } => {},
+            }
+            zwlr_screencopy_frame_v1::Event::Flags { flags } => {}
             zwlr_screencopy_frame_v1::Event::Ready { .. } => {
                 if let FrameStatus::FrameRequested(buffer) = &state.status {
                     state.status = FrameStatus::FrameReady(buffer.clone())
                 } else {
                     state.status = FrameStatus::Error(Box::from("received frame ready without having requested a frame"))
                 }
-            },
+            }
             zwlr_screencopy_frame_v1::Event::Failed => state.status = FrameStatus::Failed,
-            zwlr_screencopy_frame_v1::Event::Damage { .. } => {},
-            zwlr_screencopy_frame_v1::Event::LinuxDmabuf { .. } => {},
-            zwlr_screencopy_frame_v1::Event::BufferDone => {},
-            _ => {},
+            zwlr_screencopy_frame_v1::Event::Damage { .. } => {}
+            zwlr_screencopy_frame_v1::Event::LinuxDmabuf { .. } => {}
+            zwlr_screencopy_frame_v1::Event::BufferDone => {}
+            _ => {}
         }
     }
 }

@@ -1,0 +1,12 @@
+[package]
+name = "hyprland-screen-picker-protocols"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bitflags = "2.8.0"
+memfd = "0.6.4"
+wayland-backend = "0.3.8"
+wayland-client = "0.31.8"
+wayland-protocols-wlr = { version = "0.3.6", features = ["client"] }
+wayland-scanner = "0.31.6"

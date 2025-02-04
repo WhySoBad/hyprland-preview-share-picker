@@ -1,34 +1,42 @@
 use std::{io::Read, os::fd::AsFd};
 
-use wayland_client::{protocol::{wl_buffer::WlBuffer, wl_shm::{Format, WlShm}, wl_shm_pool::WlShmPool}, Dispatch, QueueHandle};
+use wayland_client::{
+    Dispatch, QueueHandle,
+    protocol::{
+        wl_buffer::WlBuffer,
+        wl_shm::{Format, WlShm},
+        wl_shm_pool::WlShmPool,
+    },
+};
 
 #[derive(Debug)]
 pub struct Buffer {
     pub buffer: WlBuffer,
     pub width: u32,
     pub height: u32,
+    pub stride: u32,
     pub format: Format,
-    fd: memfd::Memfd
+    fd: memfd::Memfd,
 }
 
-impl Buffer where {
+impl Buffer {
     /// create a new buffer to store a single frame
-    pub fn new<K: Send + Sync + Clone + 'static, T: Dispatch<WlBuffer, K> + Dispatch<WlShmPool, K> + Dispatch<WlShm, K> + 'static>(shm: &WlShm, width: u32, height: u32, stride: u32, format: Format, handle: &QueueHandle<T>, udata: K) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new<K: Send + Sync + Clone + 'static, T: Dispatch<WlBuffer, K> + Dispatch<WlShmPool, K> + Dispatch<WlShm, K> + 'static>(
+        shm: &WlShm,
+        width: u32,
+        height: u32,
+        stride: u32,
+        format: Format,
+        handle: &QueueHandle<T>,
+        udata: K,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let mfd = memfd::MemfdOptions::default().create("buffer")?;
         mfd.as_file().set_len((width * height * 4) as u64)?;
         let pool = shm.create_pool(mfd.as_file().as_fd(), (width * height * 4) as i32, handle, udata.clone());
-        let buffer = pool.create_buffer(
-            0,
-            width as i32,
-            height as i32,
-            stride as i32,
-            format,
-            handle,
-            udata
-        );
+        let buffer = pool.create_buffer(0, width as i32, height as i32, stride as i32, format, handle, udata);
 
         pool.destroy();
-        Ok(Self { buffer, width, height, format, fd: mfd })
+        Ok(Self { buffer, width, height, stride, format, fd: mfd })
     }
 
     /// read the bytes from the temporary buffer file
