@@ -1,12 +1,12 @@
 [package]
-name = "hyprland-screen-picker"
+name = "hyprland-share-picker"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 image = "0.25.5"
 log = "0.4.25"
-hyprland-screen-picker-protocols = { path = "./hyprland-screen-picker-protocols" }
+hyprland-share-picker-protocols = { path = "./hyprland-share-picker-protocols" }
 wayland-client = "0.31.8"
 hyprland = "0.4.0-beta.1"
 clap = { version = "4.5.28", features = ["derive"] }

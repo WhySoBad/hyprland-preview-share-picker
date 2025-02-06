@@ -998,7 +998,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyprland-screen-picker"
+name = "hyprland-share-picker"
 version = "0.1.0"
 dependencies = [
  "clap",
@@ -1007,7 +1007,7 @@ dependencies = [
  "gtk4",
  "gtk4-layer-shell",
  "hyprland",
- "hyprland-screen-picker-protocols",
+ "hyprland-share-picker-protocols",
  "image",
  "log",
  "serde",
@@ -1016,7 +1016,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyprland-screen-picker-protocols"
+name = "hyprland-share-picker-protocols"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.8.0",

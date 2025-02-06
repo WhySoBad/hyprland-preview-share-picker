@@ -1,3 +1,3 @@
-[submodule "hyprland-screen-picker-protocols/hyprland-protocols"]
-	path = hyprland-screen-picker-protocols/hyprland-protocols
+[submodule "hyprland-share-picker-protocols/hyprland-protocols"]
+	path = hyprland-share-picker-protocols/hyprland-protocols
 	url = git@github.com:hyprwm/hyprland-protocols.git

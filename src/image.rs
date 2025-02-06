@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use gtk4::gdk_pixbuf::Pixbuf;
-use hyprland_screen_picker_protocols::buffer::Buffer;
+use hyprland_share_picker_protocols::buffer::Buffer;
 use image::{RgbImage, RgbaImage, imageops::resize};
 
 /// Xrgb8888 buffered image (as returned by hyprland) stored as a rgba image
@@ -14,7 +14,7 @@ enum ImageKind {
 
 pub struct Image {
     buffer: ImageKind,
-    pub aspect_ratio: f64,
+    aspect_ratio: f64,
 }
 
 impl Image {
@@ -45,12 +45,8 @@ impl Image {
     }
 
     /// resize the image buffer such that the bigger of the two dimensions is `size` long
-    pub fn resize_to_fit(&mut self, size: u32) {
-        let (width, height) = if self.aspect_ratio > 1.0 {
-            (size, (size as f64 / self.aspect_ratio) as u32)
-        } else {
-            ((size as f64 / self.aspect_ratio) as u32, size)
-        };
+    pub fn resize_to_fit_height(&mut self, height: u32) {
+        let width = (height as f64 * self.aspect_ratio) as u32;
         self.resize(width, height);
     }
 

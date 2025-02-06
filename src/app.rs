@@ -1,13 +1,10 @@
 use gtk::{Application, ApplicationWindow, gio::prelude::ApplicationExtManual, glib::ExitCode};
 use gtk4::{
-    self as gtk, Box, FlowBox, Image as GtkImage, Label, ScrolledWindow, Widget,
-    gio::prelude::ApplicationExt,
-    glib::object::IsA,
-    prelude::{BoxExt, GtkWindowExt, WidgetExt},
+    self as gtk, gdk::Texture, gio::prelude::ApplicationExt, glib::object::IsA, prelude::{BoxExt, GtkWindowExt, WidgetExt}, Box, FlowBox, Image as GtkImage, Label, Picture, ScrolledWindow, Widget
 };
 use gtk4_layer_shell::*;
 use hyprland::{data::Clients, shared::HyprData};
-use hyprland_screen_picker_protocols::{frame::FrameManager, output::OutputManager};
+use hyprland_share_picker_protocols::{frame::FrameManager, output::OutputManager};
 use wayland_client::Connection;
 
 use crate::{config::WindowConfig, image::Image};
@@ -91,9 +88,12 @@ impl App {
         clients.iter().for_each(|client| {
             let handle = u64::from_str_radix(format!("{}", client.address)[2..].as_ref(), 16).expect("should be valid u64");
             let buffer = manager.capture_frame(handle).expect("should capture frame");
+
+            log::info!("{}: width={} height={}", client.title, buffer.width, buffer.height);
+
             let mut img = Image::new(buffer).expect("should create image").into_rgb().expect("should convert to rgb");
 
-            img.resize_to_fit(200);
+            img.resize_to_fit_height(200);
             let card = Self::build_image_with_label(img, client.title.as_str());
             container.insert(&card, 0);
         });
@@ -112,7 +112,7 @@ impl App {
             let buffer = manager.capture_output(&wl_output).expect("should capture output");
             let mut img = Image::new(buffer).expect("should create image").into_rgb().expect("should convert to rgb");
 
-            img.resize_to_fit(200);
+            img.resize_to_fit_height(200);
             let label_text = output.name.unwrap_or(format!("Output {}", index + 1));
             let card = Self::build_image_with_label(img, label_text.as_str());
             container.insert(&card, 0);
@@ -128,24 +128,18 @@ impl App {
     }
 
     fn build_image_with_label(image: Image, label_text: &str) -> impl IsA<Widget> {
-        let container = Box::builder().orientation(gtk4::Orientation::Vertical).spacing(0).build();
-
-        let aspect_ratio = image.aspect_ratio;
+        let container = Box::builder().orientation(gtk4::Orientation::Vertical).spacing(6).build();
         let pixbuf = image.into_pixbuf().expect("should be valid pixbuf");
 
-        let image = GtkImage::from_pixbuf(Some(&pixbuf));
+        let texture = Texture::for_pixbuf(&pixbuf);
+        let image = Picture::for_paintable(&texture);
+        drop(texture);
         drop(pixbuf);
+
         let label =
             Label::builder().max_width_chars(30).label(label_text).single_line_mode(true).vexpand(false).hexpand(false).build();
 
-        // let (height, width) = if aspect_ratio > 1.0 {
-        //     (IMAGE_TARGET_SIZE, (IMAGE_TARGET_SIZE as f64 / aspect_ratio) as i32)
-        // } else {
-        //     ((IMAGE_TARGET_SIZE as f64 / aspect_ratio) as i32, IMAGE_TARGET_SIZE)
-        // };
-        let (width, height) = ((IMAGE_TARGET_SIZE as f32 * 16_f32 / 9_f32) as i32, IMAGE_TARGET_SIZE);
-        image.set_width_request(width);
-        image.set_height_request(height);
+        image.set_height_request(IMAGE_TARGET_SIZE);
 
         container.append(&image);
         container.append(&label);
