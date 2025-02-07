@@ -2,7 +2,7 @@ use std::path::Path;
 
 use clap::Parser;
 
-const CONFIG_PATH: &str = ".config/hyprland-screen-picker/config.toml";
+const CONFIG_PATH: &str = ".config/hyprland-share-picker/config.toml";
 const LOG_PATH: &str = "hyprland-share-picker.log";
 
 #[derive(Parser)]
