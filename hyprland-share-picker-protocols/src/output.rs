@@ -258,7 +258,7 @@ impl Dispatch<ZwlrScreencopyFrameV1, ()> for OutputManager {
                     state.status = FrameStatus::Error(Box::from("buffer event is called without having shm"));
                 }
             }
-            zwlr_screencopy_frame_v1::Event::Flags { flags } => {}
+            zwlr_screencopy_frame_v1::Event::Flags { .. } => {}
             zwlr_screencopy_frame_v1::Event::Ready { .. } => {
                 if let FrameStatus::FrameRequested(buffer) = &state.status {
                     state.status = FrameStatus::FrameReady(buffer.clone())

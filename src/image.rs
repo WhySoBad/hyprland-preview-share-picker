@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use gtk4::gdk_pixbuf::Pixbuf;
+use hyprland::data::Transforms;
 use hyprland_share_picker_protocols::buffer::Buffer;
 use image::{RgbImage, RgbaImage, imageops::resize};
 
@@ -44,8 +45,53 @@ impl Image {
         }
     }
 
+    /// apply an output transformation to the image
+    pub fn transform(mut self, transform: Transforms) -> Self {
+        self.buffer = match transform {
+            Transforms::Normal => self.buffer,
+            Transforms::Normal90 => match self.buffer {
+                ImageKind::Rgb(image_buffer) => ImageKind::Rgb(image::imageops::rotate90(&image_buffer)),
+                ImageKind::Xrgb(image_buffer) => ImageKind::Xrgb(image::imageops::rotate90(&image_buffer)),
+            },
+            Transforms::Normal180 => {
+                match &mut self.buffer {
+                    ImageKind::Rgb(image_buffer) => image::imageops::rotate180_in_place(image_buffer),
+                    ImageKind::Xrgb(image_buffer) => image::imageops::rotate180_in_place(image_buffer),
+                };
+                self.buffer
+            }
+            Transforms::Normal270 => match self.buffer {
+                ImageKind::Rgb(image_buffer) => ImageKind::Rgb(image::imageops::rotate270(&image_buffer)),
+                ImageKind::Xrgb(image_buffer) => ImageKind::Xrgb(image::imageops::rotate270(&image_buffer)),
+            },
+            Transforms::Flipped => {
+                match &mut self.buffer {
+                    ImageKind::Rgb(image_buffer) => image::imageops::flip_vertical_in_place(image_buffer),
+                    ImageKind::Xrgb(image_buffer) => image::imageops::flip_vertical_in_place(image_buffer),
+                }
+                self.buffer
+            }
+            Transforms::Flipped90 => todo!(),
+            Transforms::Flipped180 => todo!(),
+            Transforms::Flipped270 => todo!(),
+        };
+
+        self.aspect_ratio = match &self.buffer {
+            ImageKind::Rgb(image_buffer) => image_buffer.width() as f64 / image_buffer.height() as f64,
+            ImageKind::Xrgb(image_buffer) => image_buffer.width() as f64 / image_buffer.height() as f64,
+        };
+        self
+    }
+
     /// resize the image buffer such that the bigger of the two dimensions is `size` long
     pub fn resize_to_fit_height(&mut self, height: u32) {
+        if match &self.buffer {
+            ImageKind::Rgb(image_buffer) => image_buffer.height(),
+            ImageKind::Xrgb(image_buffer) => image_buffer.height(),
+        } <= height
+        {
+            return;
+        }
         let width = (height as f64 * self.aspect_ratio) as u32;
         self.resize(width, height);
     }

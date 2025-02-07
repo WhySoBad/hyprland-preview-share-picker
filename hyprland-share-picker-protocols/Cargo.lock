@@ -34,10 +34,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyprland-screen-picker-protocols"
+name = "hyprland-share-picker-protocols"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "log",
  "memfd",
  "wayland-backend",
  "wayland-client",
@@ -56,6 +57,12 @@ name = "linux-raw-sys"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d26c52dbd32dccf2d10cac7725f8eae5296885fb5703b261f7d0a0739ec807ab"
+
+[[package]]
+name = "log"
+version = "0.4.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04cbf5b083de1c7e0222a7a51dbfdba1cbe1c6ab0b15e29fff3f6c077fd9cd9f"
 
 [[package]]
 name = "memchr"

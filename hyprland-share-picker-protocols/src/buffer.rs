@@ -21,7 +21,10 @@ pub struct Buffer {
 
 impl Buffer {
     /// create a new buffer to store a single frame
-    pub fn new<K: Send + Sync + Clone + 'static, T: Dispatch<WlBuffer, K> + Dispatch<WlShmPool, K> + Dispatch<WlShm, K> + 'static>(
+    pub fn new<
+        K: Send + Sync + Clone + 'static,
+        T: Dispatch<WlBuffer, K> + Dispatch<WlShmPool, K> + Dispatch<WlShm, K> + 'static,
+    >(
         shm: &WlShm,
         width: u32,
         height: u32,

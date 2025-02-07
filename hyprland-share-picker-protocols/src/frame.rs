@@ -57,6 +57,7 @@ impl FrameManager {
 
     /// capture a single frame buffer for a window handle
     pub fn capture_frame(&mut self, window_handle: u64) -> Result<Rc<Buffer>, Box<dyn std::error::Error>> {
+        log::debug!("attempting to capture frame for window {window_handle}");
         let &FrameStatus::Inactive = &self.status else {
             return Err(Box::from("frame manager is not in inactive status"));
         };
@@ -146,6 +147,7 @@ impl Dispatch<HyprlandToplevelExportFrameV1, ()> for FrameManager {
         _conn: &Connection,
         qhandle: &wayland_client::QueueHandle<Self>,
     ) {
+        log::debug!("HyprlandToplevelExportFrameV1 event: {event:?}");
         match event {
             hyprland_toplevel_export_frame_v1::Event::Buffer { format, width, height, stride } => {
                 let Ok(format) = format.into_result() else {
@@ -162,9 +164,7 @@ impl Dispatch<HyprlandToplevelExportFrameV1, ()> for FrameManager {
                 }
             }
             hyprland_toplevel_export_frame_v1::Event::Damage { .. } => {}
-            hyprland_toplevel_export_frame_v1::Event::Flags { flags } => {
-                // todo!("parse flags")
-            }
+            hyprland_toplevel_export_frame_v1::Event::Flags { .. } => {}
             hyprland_toplevel_export_frame_v1::Event::Ready { .. } => {
                 if let FrameStatus::FrameRequested(buffer) = &state.status {
                     state.status = FrameStatus::FrameReady(buffer.clone())
