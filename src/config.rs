@@ -18,6 +18,12 @@ pub struct Config {
     pub image: ImageConfig,
     /// config for customizing widget css classes
     pub classes: ClassesConfig,
+    /// config related to the region page
+    pub region: RegionConfig,
+    /// config related to the windows page
+    pub windows: WindowsConfig,
+    /// config related to the outputs page
+    pub outputs: OutputsConfig
 }
 
 impl Config {
@@ -95,6 +101,9 @@ impl Default for Config {
             stylesheets: Vec::default(),
             image: ImageConfig::default(),
             classes: ClassesConfig::default(),
+            region: RegionConfig::default(),
+            outputs: OutputsConfig::default(),
+            windows: WindowsConfig::default()
         }
     }
 }
@@ -145,6 +154,8 @@ pub struct ClassesConfig {
     pub tab_label: String,
     /// class applied to the container of a single page of the notebook
     pub notebook_page: String,
+    /// class applied to the button which triggers the region selection
+    pub region_button: String
 }
 
 impl Default for ClassesConfig {
@@ -157,6 +168,58 @@ impl Default for ClassesConfig {
             notebook: String::from("notebook"),
             tab_label: String::from("tab-label"),
             notebook_page: String::from("page"),
+            region_button: String::from("region-button")
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct RegionConfig {
+    /// command to use for the region selection
+    ///
+    /// the command should return a value in the following format:
+    /// <output>@<x>,<y>,<w>,<h> (e.g. DP-3@2789,436,756,576)
+    pub command: String
+}
+
+impl Default for RegionConfig {
+    fn default() -> Self {
+        Self {
+            command: String::from("slurp -f '%o@%x,%y,%w,%h'")
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct OutputsConfig {
+    /// minimum amount of cards per row
+    pub min_per_row: u32,
+    /// minimum amount of cards per row
+    pub max_per_row: u32
+}
+
+impl Default for OutputsConfig {
+    fn default() -> Self {
+        Self {
+            min_per_row: 2,
+            max_per_row: 2
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct WindowsConfig {
+    /// minimum amount of cards per row
+    pub min_per_row: u32,
+    /// minimum amount of cards per row
+    pub max_per_row: u32
+}
+
+impl Default for WindowsConfig {
+    fn default() -> Self {
+        Self {
+            min_per_row: 3,
+            max_per_row: 999
         }
     }
 }

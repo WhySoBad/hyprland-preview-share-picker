@@ -1025,6 +1025,7 @@ dependencies = [
  "regex",
  "rsass",
  "serde",
+ "shlex",
  "toml",
  "wayland-client",
 ]

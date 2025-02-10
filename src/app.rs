@@ -1,12 +1,7 @@
-use std::process::exit;
+use std::process::{exit, Command};
 
 use gtk4::{
-    Application, ApplicationWindow, Box, CssProvider, EventControllerKey, FlowBox, FlowBoxChild, GestureClick, Label,
-    Notebook, Picture, STYLE_PROVIDER_PRIORITY_APPLICATION, ScrolledWindow, Widget,
-    gdk::{Display, Texture},
-    gio::prelude::{ApplicationExt, ApplicationExtManual},
-    glib::{ExitCode, object::IsA},
-    prelude::{BoxExt, FlowBoxChildExt, GtkWindowExt, WidgetExt},
+    gdk::{Display, Texture}, gio::prelude::{ApplicationExt, ApplicationExtManual}, glib::{object::IsA, spawn_future_local, ExitCode}, prelude::{BoxExt, ButtonExt, FlowBoxChildExt, GtkWindowExt, WidgetExt}, Application, ApplicationWindow, Box, Button, CssProvider, EventControllerKey, FlowBox, FlowBoxChild, GestureClick, Label, Notebook, Picture, ScrolledWindow, Widget, STYLE_PROVIDER_PRIORITY_APPLICATION
 };
 use gtk4_layer_shell::*;
 use hyprland::{
@@ -14,6 +9,7 @@ use hyprland::{
     shared::HyprData,
 };
 use hyprland_share_picker_protocols::{frame::FrameManager, output::OutputManager};
+use regex::Regex;
 use rsass::{compile_scss, output};
 use wayland_client::Connection;
 
@@ -59,7 +55,7 @@ impl App {
             let windows_label = Label::builder().css_classes([config.classes.tab_label.as_str()]).label("Windows").build();
             let outputs_view = Self::build_outputs_view(&con, &config);
             let outputs_label = Label::builder().css_classes([config.classes.tab_label.as_str()]).label("Outputs").build();
-            let region_view = Self::build_region_view(&config);
+            let region_view = Self::build_region_view(&window, &config);
             let region_label = Label::builder().css_classes([config.classes.tab_label.as_str()]).label("Region").build();
 
             notebook.append_page(&windows_view, Some(&windows_label));
@@ -153,7 +149,8 @@ impl App {
             .column_spacing(12)
             .orientation(gtk4::Orientation::Horizontal)
             .homogeneous(true)
-            .min_children_per_line(3)
+            .min_children_per_line(config.windows.min_per_row)
+            .max_children_per_line(config.windows.max_per_row)
             .build();
         scrolled_container.set_child(Some(&container));
 
@@ -233,7 +230,8 @@ impl App {
             .selection_mode(gtk4::SelectionMode::Browse)
             .orientation(gtk4::Orientation::Horizontal)
             .homogeneous(true)
-            .min_children_per_line(3)
+            .min_children_per_line(config.outputs.min_per_row)
+            .max_children_per_line(config.outputs.max_per_row)
             .build();
 
         scrolled_container.set_child(Some(&container));
@@ -302,11 +300,63 @@ impl App {
         scrolled_container
     }
 
-    fn build_region_view(config: &Config) -> impl IsA<Widget> {
+    fn build_region_view(window: &ApplicationWindow, config: &Config) -> impl IsA<Widget> {
         let container = Box::builder()
             .css_classes([config.classes.notebook_page.as_str()])
             .orientation(gtk4::Orientation::Vertical)
+            .halign(gtk4::Align::Center)
+            .valign(gtk4::Align::Center)
             .build();
+
+        let button = Button::builder()
+            .label("Select region")
+            .css_classes([config.classes.region_button.as_str()])
+            .build();
+
+        let args = if let Some(argv) = shlex::split(&config.region.command) {
+            Some(argv)
+        } else {
+            log::error!("received invalid region command: {}", config.region.command);
+            // disable the button
+            button.set_sensitive(false);
+            None
+        };
+
+        let region_regex = Regex::new(r"^.+@-?\d+,-?\d+,\d+,\d+$").expect("should be valid regex");
+
+        let window = window.clone();
+        button.connect_clicked(move |_| {
+            if let Some(args) = &args {
+                let mut command = Command::new(&args[0]);
+                command.args(&args[1..]);
+                log::info!("using {command:?} as region command");
+                window.hide();
+
+                let region_regex = region_regex.clone();
+                let window = window.clone();
+                spawn_future_local(async move {
+                    match command.output() {
+                        Ok(output) => {
+                            let region = String::from_utf8_lossy(&output.stdout);
+                            let region = region.trim();
+                            if region_regex.is_match(&region) {
+                                Self::print_and_exit("region", &region);
+                            } else {
+                                log::error!("region command returned output '{region}': expected '<output>@<x>,<y>,<w>,<h>'");
+                                window.show();
+                            }
+                        },
+                        Err(err) => {
+                            log::error!("error whilst selecting share region: {err}");
+                            window.show();
+                        },
+                    }
+                });
+            }
+        });
+
+        container.insert_child_after(&button, Option::<&Box>::None);
+
         container
     }
 
@@ -321,7 +371,6 @@ impl App {
             .hexpand(false)
             .halign(gtk4::Align::Fill)
             .valign(gtk4::Align::Start)
-            .spacing(6)
             .css_classes([config.classes.image_card.as_str()])
             .build();
         let pixbuf = image.into_pixbuf()?;
@@ -337,7 +386,7 @@ impl App {
             .ellipsize(gtk4::pango::EllipsizeMode::End)
             .single_line_mode(true)
             .css_classes([config.classes.image_label.as_str()])
-            .hexpand(true)
+            .hexpand(false)
             .build();
 
         image.set_css_classes(&[config.classes.image.as_str()]);
