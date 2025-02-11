@@ -6,7 +6,7 @@ const CONFIG_PATH: &str = ".config/hyprland-preview-share-picker/config.yaml";
 const LOG_PATH: &str = "hyprland-preview-share-picker.log";
 
 #[derive(Parser)]
-#[clap(version, author, about)]
+#[clap(version = option_env!("GIT_VERSION").unwrap_or("version information missing"), about, long_about = None)]
 pub struct Cli {
     #[arg(global = true, long, short, default_value_t = get_default_config_path())]
     /// Alternative path to a config file

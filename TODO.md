@@ -5,7 +5,7 @@
 
 - [x] Support restore tokens (also support `allow_token_by_default` xdph config option)
 
-- [ ] Change version command to use a build env which contains the git version (set in `build.rs`)
+- [x] Change version command to use a build env which contains the git version (set in `build.rs`)
 
 - [ ] Cache compiled SCSS stylesheets to fasten startup
 
