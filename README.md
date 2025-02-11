@@ -15,9 +15,9 @@ The project is built using the rust nightly toolchain.
 
 ```bash
 # clone the repository with it's submodules
-git clone —recursive https://github.com/WhySoBad/hyprland-preview-share-picker
+git clone --recursive https://github.com/WhySoBad/hyprland-preview-share-picker
 
-cd hyprland-preview-share-picker
+cd ./hyprland-preview-share-picker
 
 # build the optimized release binary
 cargo build --release
