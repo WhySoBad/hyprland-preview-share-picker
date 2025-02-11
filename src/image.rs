@@ -1,130 +1,15 @@
-use std::rc::Rc;
-
 use gtk4::gdk_pixbuf::Pixbuf;
-use hyprland::data::Transforms;
-use hyprland_preview_share_picker_protocols::buffer::Buffer;
-use image::{RgbImage, RgbaImage, imageops::resize};
+use hyprland_preview_share_picker_protocols::image::{Image, ImageKind};
 
-/// Xrgb8888 buffered image (as returned by hyprland) stored as a rgba image
-type XrgbImage = RgbaImage;
-
-enum ImageKind {
-    Rgb(RgbImage),
-    Xrgb(XrgbImage),
-}
-
-pub struct Image {
-    buffer: ImageKind,
-    aspect_ratio: f64,
-}
-
-impl Image {
-    /// create a new image from a buffer storing a frame
-    pub fn new(buffer: Rc<Buffer>) -> Result<Self, Box<dyn std::error::Error>> {
-        let bytes = buffer.get_bytes()?;
-        buffer.destroy()?;
-        let img = match XrgbImage::from_vec(buffer.width, buffer.height, bytes) {
-            Some(img) => Self { buffer: ImageKind::Xrgb(img), aspect_ratio: buffer.width as f64 / buffer.height as f64 },
-            None => return Err(Box::from("failed to create xrgb image from buffer")),
-        };
-        drop(buffer);
-        Ok(img)
-    }
-
-    /// resize the image buffer to the specified dimensions
-    pub fn resize(&mut self, width: u32, height: u32) {
-        match &self.buffer {
-            ImageKind::Rgb(image_buffer) => {
-                let sized = resize(image_buffer, width, height, image::imageops::FilterType::Triangle);
-                self.buffer = ImageKind::Rgb(sized);
-            }
-            ImageKind::Xrgb(image_buffer) => {
-                let sized = resize(image_buffer, width, height, image::imageops::FilterType::Triangle);
-                self.buffer = ImageKind::Xrgb(sized);
-            }
-        }
-    }
-
-    /// apply an output transformation to the image
-    pub fn transform(mut self, transform: Transforms) -> Self {
-        self.buffer = match transform {
-            Transforms::Normal => self.buffer,
-            Transforms::Normal90 => match self.buffer {
-                ImageKind::Rgb(image_buffer) => ImageKind::Rgb(image::imageops::rotate90(&image_buffer)),
-                ImageKind::Xrgb(image_buffer) => ImageKind::Xrgb(image::imageops::rotate90(&image_buffer)),
-            },
-            Transforms::Normal180 => {
-                match &mut self.buffer {
-                    ImageKind::Rgb(image_buffer) => image::imageops::rotate180_in_place(image_buffer),
-                    ImageKind::Xrgb(image_buffer) => image::imageops::rotate180_in_place(image_buffer),
-                };
-                self.buffer
-            }
-            Transforms::Normal270 => match self.buffer {
-                ImageKind::Rgb(image_buffer) => ImageKind::Rgb(image::imageops::rotate270(&image_buffer)),
-                ImageKind::Xrgb(image_buffer) => ImageKind::Xrgb(image::imageops::rotate270(&image_buffer)),
-            },
-            Transforms::Flipped => {
-                match &mut self.buffer {
-                    ImageKind::Rgb(image_buffer) => image::imageops::flip_vertical_in_place(image_buffer),
-                    ImageKind::Xrgb(image_buffer) => image::imageops::flip_vertical_in_place(image_buffer),
-                }
-                self.buffer
-            }
-            Transforms::Flipped90 => todo!(),
-            Transforms::Flipped180 => todo!(),
-            Transforms::Flipped270 => todo!(),
-        };
-
-        self.aspect_ratio = match &self.buffer {
-            ImageKind::Rgb(image_buffer) => image_buffer.width() as f64 / image_buffer.height() as f64,
-            ImageKind::Xrgb(image_buffer) => image_buffer.width() as f64 / image_buffer.height() as f64,
-        };
-        self
-    }
-
-    /// resize the image buffer such that the bigger of the two dimensions is `size` long
-    pub fn resize_to_fit_height(&mut self, height: u32) {
-        if match &self.buffer {
-            ImageKind::Rgb(image_buffer) => image_buffer.height(),
-            ImageKind::Xrgb(image_buffer) => image_buffer.height(),
-        } <= height
-        {
-            return;
-        }
-        let width = (height as f64 * self.aspect_ratio) as u32;
-        self.resize(width, height);
-    }
-
-    /// convert a possible xrgb image instance into a rgb image instance
-    ///
-    /// if the instance is already a rgb instance nothing happens
-    pub fn into_rgb(self) -> Result<Self, Box<dyn std::error::Error>> {
-        let ImageKind::Xrgb(xrgb_buffer) = self.buffer else {
-            return Ok(self);
-        };
-        let aspect_ratio = self.aspect_ratio;
-
-        Ok(Self { buffer: ImageKind::Rgb(Self::convert_xrgb_to_rgb(xrgb_buffer)?), aspect_ratio })
-    }
-
-    /// convert a xrgb buffer into a rgb buffer
-    fn convert_xrgb_to_rgb(buffer: XrgbImage) -> Result<RgbImage, Box<dyn std::error::Error>> {
-        let height = buffer.height();
-        let width = buffer.width();
-
-        let raw = buffer.into_vec();
-        let bytes = raw.into_iter().array_chunks::<4>().flat_map(|[b, g, r, _]| [r, g, b]).collect::<Vec<_>>();
-        match RgbImage::from_vec(width, height, bytes) {
-            Some(img) => Ok(img),
-            None => Err(Box::from("failed to convert xrgb image to rgb image")),
-        }
-    }
-
+pub trait ImageExt {
     /// turn the image into a gdk pixbuf which can directly be displayed inside a gtk image
-    pub fn into_pixbuf(self) -> Result<Pixbuf, Box<dyn std::error::Error>> {
-        let rgb_image = match self.buffer {
-            ImageKind::Xrgb(image_buffer) => Self::convert_xrgb_to_rgb(image_buffer)?,
+    fn into_pixbuf(self) -> Result<Pixbuf, Box<dyn std::error::Error>>;
+}
+
+impl ImageExt for Image {
+    fn into_pixbuf(self) -> Result<Pixbuf, Box<dyn std::error::Error>> {
+        let rgb_image = match self.into_rgb()?.buffer {
+            ImageKind::Xrgb(_) => unreachable!("the image just got converted to rgb"),
             ImageKind::Rgb(image_buffer) => image_buffer,
         };
 

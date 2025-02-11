@@ -5,9 +5,14 @@ edition = "2024"
 
 [dependencies]
 bitflags = "2.8.0"
+image = "0.25.5"
 log = "0.4.25"
 memfd = "0.6.4"
 wayland-backend = "0.3.8"
 wayland-client = "0.31.8"
 wayland-protocols-wlr = { version = "0.3.6", features = ["client"] }
 wayland-scanner = "0.31.6"
+hyprland = { version = "0.4.0-beta.1", optional = true }
+
+[features]
+hyprland-rs = ["dep:hyprland"]

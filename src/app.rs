@@ -21,12 +21,12 @@ use hyprland::{
     data::{Clients, Monitors},
     shared::HyprData,
 };
-use hyprland_preview_share_picker_protocols::{frame::FrameManager, output::OutputManager};
+use hyprland_preview_share_picker_protocols::{frame::FrameManager, image::Image, output::OutputManager};
 use regex::Regex;
 use rsass::{compile_scss, output};
 use wayland_client::Connection;
 
-use crate::{config::Config, image::Image, toplevel::Toplevel};
+use crate::{config::Config, image::ImageExt, toplevel::Toplevel};
 
 const APP_ID: &str = "ch.wysbd.hyprland-preview-screen-picker";
 
@@ -331,7 +331,7 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
         };
 
         if let Some(monitor) = monitors.iter().find(|m| m.name.eq(&name)) {
-            img = img.transform(monitor.transform);
+            img = img.transform(monitor.transform.into());
         }
 
         img.resize_to_fit_height(config.image.resize_size);

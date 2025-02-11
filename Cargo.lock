@@ -1044,6 +1044,8 @@ name = "hyprland-preview-share-picker-protocols"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.8.0",
+ "hyprland",
+ "image",
  "log",
  "memfd",
  "wayland-backend",

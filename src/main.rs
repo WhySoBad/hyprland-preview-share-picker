@@ -1,5 +1,3 @@
-#![feature(iter_array_chunks)]
-
 use app::App;
 use clap::Parser;
 use cli::Cli;
