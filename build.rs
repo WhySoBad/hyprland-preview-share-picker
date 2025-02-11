@@ -4,7 +4,7 @@ fn main() {
             if output.stdout.is_empty() {
                 String::from("unknown")
             } else {
-                String::from_utf8_lossy(&output.stdout).to_string()
+                String::from_utf8_lossy(&output.stdout).trim().to_string()
             }
         },
         Err(err) => {
@@ -13,12 +13,12 @@ fn main() {
         },
     };
 
-    let commit = match std::process::Command::new("git").arg("log").arg("--format=%H").arg("-n").arg("1").output() {
+    let commit = match std::process::Command::new("git").arg("log").arg("--format=%H [%s]").arg("-n").arg("1").output() {
         Ok(output) => {
             if output.stdout.is_empty() {
                 String::from("unknown")
             } else {
-                String::from_utf8_lossy(&output.stdout).to_string()
+                String::from_utf8_lossy(&output.stdout).trim().to_string()
             }
         },
         Err(err) => {
@@ -27,5 +27,5 @@ fn main() {
         },
     };
 
-    println!("cargo::rustc-env=GIT_VERSION={tag} {commit}");
+    println!("cargo::rustc-env=GIT_VERSION={tag} at commit {commit}");
 }
