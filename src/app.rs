@@ -21,12 +21,12 @@ use hyprland::{
     data::{Clients, Monitors},
     shared::HyprData,
 };
-use hyprland_preview_share_picker_protocols::{frame::FrameManager, image::Image, output::OutputManager};
+use hyprland_preview_share_picker_lib::{frame::FrameManager, image::Image, toplevel::Toplevel, output::OutputManager};
 use regex::Regex;
 use rsass::{compile_scss, output};
 use wayland_client::Connection;
 
-use crate::{config::Config, image::ImageExt, toplevel::Toplevel};
+use crate::{config::Config, image::ImageExt};
 
 const APP_ID: &str = "ch.wysbd.hyprland-preview-screen-picker";
 

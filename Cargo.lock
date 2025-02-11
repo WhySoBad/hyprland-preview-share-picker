@@ -1026,7 +1026,7 @@ dependencies = [
  "gtk4",
  "gtk4-layer-shell",
  "hyprland",
- "hyprland-preview-share-picker-protocols",
+ "hyprland-preview-share-picker-lib",
  "image",
  "log",
  "regex",
@@ -1040,7 +1040,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyprland-preview-share-picker-protocols"
+name = "hyprland-preview-share-picker-lib"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.8.0",
@@ -1048,6 +1048,7 @@ dependencies = [
  "image",
  "log",
  "memfd",
+ "regex",
  "wayland-backend",
  "wayland-client",
  "wayland-protocols-wlr",

@@ -2,15 +2,14 @@ use app::App;
 use clap::Parser;
 use cli::Cli;
 use config::Config;
+use hyprland_preview_share_picker_lib::toplevel::Toplevel;
 use log::LevelFilter;
 use schemars::r#gen::SchemaSettings;
-use toplevel::Toplevel;
 
 mod app;
 mod cli;
 mod config;
 mod image;
-mod toplevel;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();

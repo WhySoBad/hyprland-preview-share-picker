@@ -1,5 +1,5 @@
 use gtk4::gdk_pixbuf::Pixbuf;
-use hyprland_preview_share_picker_protocols::image::{Image, ImageKind};
+use hyprland_preview_share_picker_lib::image::{Image, ImageKind};
 
 pub trait ImageExt {
     /// turn the image into a gdk pixbuf which can directly be displayed inside a gtk image

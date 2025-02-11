@@ -135,5 +135,5 @@ It's possible to override most of the CSS classnames of the widgets used with th
 ### Custom frontend
 
 If you prefer to have a frontend in the ui toolkit of your choice or you dislike the layout of this frontend, it should be pretty straightforward to
-create your own frontend in rust. All of the wayland logic is located in the `hyprland-preview-share-picker-protocols` project. By adding this as git dependency
+create your own frontend in rust. All of the toolkit independent logic (mostly wayland logic) is located in the `lib` subproject. By adding this as git dependency
 to your project, most of the application logic should be taken care of.

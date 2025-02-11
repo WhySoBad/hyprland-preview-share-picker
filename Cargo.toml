@@ -7,7 +7,7 @@ edition = "2024"
 [dependencies]
 image = "0.25.5"
 log = "0.4.25"
-hyprland-preview-share-picker-protocols = { path = "./hyprland-preview-share-picker-protocols", features = ["hyprland-rs"] }
+hyprland-preview-share-picker-lib = { path = "./lib", features = ["hyprland-rs"] }
 wayland-client = "0.31.8"
 hyprland = "0.4.0-beta.1"
 clap = { version = "4.5.28", features = ["derive"] }
