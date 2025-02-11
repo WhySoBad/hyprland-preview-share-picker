@@ -1,27 +1,37 @@
 use std::path::Path;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
-const CONFIG_PATH: &str = ".config/hyprland-share-picker/config.toml";
+const CONFIG_PATH: &str = ".config/hyprland-share-picker/config.yaml";
 const LOG_PATH: &str = "hyprland-share-picker.log";
 
 #[derive(Parser)]
 pub struct Cli {
+    #[arg(global = true, long, short, default_value_t = get_default_config_path())]
+    /// Alternative path to a config file
+    pub config: String,
+
+    #[arg(global = true, long, short)]
+    /// Enable debug logs
+    pub debug: bool,
+
+    #[arg(global = true, long, short, default_value_t = get_default_logs_path())]
+    /// Alternative path to store logs
+    pub logs: String,
+
     #[arg(long, short)]
     /// Start the gtk inspector on application launch
     pub inspect: bool,
 
-    #[arg(long, short, default_value_t = get_default_config_path())]
-    /// Alternative path to a config file
-    pub config: String,
+    #[command(subcommand)]
+    pub command: Option<Command>,
+}
 
-    #[arg(long, short)]
-    /// Enable debug logs
-    pub debug: bool,
-
-    #[arg(long, short, default_value_t = get_default_logs_path())]
-    /// Alternative path to store logs
-    pub logs: String,
+#[derive(Subcommand)]
+pub enum Command {
+    #[clap(hide = true)]
+    /// Print the config schema
+    Schema,
 }
 
 fn get_default_config_path() -> String {

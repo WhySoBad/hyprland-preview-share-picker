@@ -1,7 +1,12 @@
-use std::process::{exit, Command};
+use std::process::{Command, exit};
 
 use gtk4::{
-    gdk::{Display, Texture}, gio::prelude::{ApplicationExt, ApplicationExtManual}, glib::{object::IsA, spawn_future_local, ExitCode}, prelude::{BoxExt, ButtonExt, FlowBoxChildExt, GtkWindowExt, WidgetExt}, Application, ApplicationWindow, Box, Button, CssProvider, EventControllerKey, FlowBox, FlowBoxChild, GestureClick, Label, Notebook, Picture, ScrolledWindow, Widget, STYLE_PROVIDER_PRIORITY_APPLICATION
+    Application, ApplicationWindow, Box, Button, CssProvider, EventControllerKey, FlowBox, FlowBoxChild, GestureClick,
+    Label, Notebook, Picture, STYLE_PROVIDER_PRIORITY_APPLICATION, ScrolledWindow, Widget,
+    gdk::{Display, Texture},
+    gio::prelude::{ApplicationExt, ApplicationExtManual},
+    glib::{ExitCode, object::IsA, spawn_future_local},
+    prelude::{BoxExt, ButtonExt, FlowBoxChildExt, GtkWindowExt, WidgetExt},
 };
 use gtk4_layer_shell::*;
 use hyprland::{
@@ -168,8 +173,6 @@ impl App {
                 Vec::new()
             }
         };
-        log::debug!("clients = {clients:?}");
-
         toplevels.iter().for_each(|toplevel| {
             log::debug!("attempting to capture frame for toplevel {}", toplevel.id);
             // this method is kindof bad since multiple windows could have the same class and title but afaik there is no clean
@@ -199,7 +202,7 @@ impl App {
                 Err(err) => return log::error!("unable to create image with label for toplevel {}: {err}", toplevel.id),
             };
             let flowbox_child =
-                FlowBoxChild::builder().halign(gtk4::Align::Fill).valign(gtk4::Align::Start).child(&card).build();
+                FlowBoxChild::builder().halign(gtk4::Align::Fill).valign(gtk4::Align::Fill).child(&card).build();
 
             let id = toplevel.id;
             let gesture = GestureClick::new();
@@ -279,7 +282,7 @@ impl App {
                 Err(err) => return log::error!("unable to create image with label for output {name}: {err}"),
             };
             let flowbox_child =
-                FlowBoxChild::builder().halign(gtk4::Align::Fill).valign(gtk4::Align::Start).child(&card).build();
+                FlowBoxChild::builder().halign(gtk4::Align::Fill).valign(gtk4::Align::Fill).child(&card).build();
 
             let name_copy = name.clone();
             let gesture = GestureClick::new();
@@ -308,10 +311,7 @@ impl App {
             .valign(gtk4::Align::Center)
             .build();
 
-        let button = Button::builder()
-            .label("Select region")
-            .css_classes([config.classes.region_button.as_str()])
-            .build();
+        let button = Button::builder().label("Select region").css_classes([config.classes.region_button.as_str()]).build();
 
         let args = if let Some(argv) = shlex::split(&config.region.command) {
             Some(argv)
@@ -342,14 +342,16 @@ impl App {
                             if region_regex.is_match(&region) {
                                 Self::print_and_exit("region", &region);
                             } else {
-                                log::error!("region command returned output '{region}': expected '<output>@<x>,<y>,<w>,<h>'");
+                                log::error!(
+                                    "region command returned output '{region}': expected '<output>@<x>,<y>,<w>,<h>'"
+                                );
                                 window.show();
                             }
-                        },
+                        }
                         Err(err) => {
                             log::error!("error whilst selecting share region: {err}");
                             window.show();
-                        },
+                        }
                     }
                 });
             }
@@ -370,13 +372,15 @@ impl App {
             .vexpand(false)
             .hexpand(false)
             .halign(gtk4::Align::Fill)
-            .valign(gtk4::Align::Start)
+            .valign(gtk4::Align::Fill)
             .css_classes([config.classes.image_card.as_str()])
             .build();
         let pixbuf = image.into_pixbuf()?;
 
         let texture = Texture::for_pixbuf(&pixbuf);
         let image = Picture::for_paintable(&texture);
+        image.set_vexpand(true);
+        image.set_valign(gtk4::Align::Center);
         drop(texture);
         drop(pixbuf);
 
