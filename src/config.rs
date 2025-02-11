@@ -18,6 +18,8 @@ pub struct Config {
     pub stylesheets: Vec<String>,
     /// hide the token restore checkbox and use the default value instead
     pub hide_token_restore: bool,
+    /// notebook page which is selected by default
+    pub default_page: Page,
     /// all config related to images
     pub image: ImageConfig,
     /// config for customizing widget css classes
@@ -109,6 +111,7 @@ impl Default for Config {
             outputs: OutputsConfig::default(),
             windows: WindowsConfig::default(),
             hide_token_restore: false,
+            default_page: Page::default()
         }
     }
 }
@@ -234,4 +237,13 @@ impl Default for WindowsConfig {
     fn default() -> Self {
         Self { min_per_row: 3, max_per_row: 999 }
     }
+}
+
+#[derive(Deserialize, Debug, Clone, JsonSchema, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum Page {
+    #[default]
+    Windows,
+    Outputs,
+    Region
 }

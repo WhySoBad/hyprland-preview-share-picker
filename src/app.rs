@@ -110,9 +110,15 @@ fn build_ui(app: &Application, config: &Config, toplevels: &Vec<Toplevel>, defau
     let region_view = build_region_view(config);
     let region_label = Label::builder().css_classes([config.classes.tab_label.as_str()]).label("Region").build();
 
-    notebook.append_page(&windows_view, Some(&windows_label));
-    notebook.append_page(&outputs_view, Some(&outputs_label));
-    notebook.append_page(&region_view, Some(&region_label));
+    let windows_page_num = notebook.append_page(&windows_view, Some(&windows_label));
+    let outputs_page_num = notebook.append_page(&outputs_view, Some(&outputs_label));
+    let region_page_num = notebook.append_page(&region_view, Some(&region_label));
+
+    notebook.set_current_page(Some(match config.default_page {
+        crate::config::Page::Windows => windows_page_num,
+        crate::config::Page::Outputs => outputs_page_num,
+        crate::config::Page::Region => region_page_num,
+    }));
 
     window_container.append(&notebook);
 

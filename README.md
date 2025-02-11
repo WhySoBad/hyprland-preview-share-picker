@@ -61,6 +61,8 @@ Below is a configuration file with all fields and their default values:
 #
 # relative paths are resolved relative to the location of the config file
 stylesheets: []
+# default page selected when the picker is opened
+default_page: windows
 
 window:
   # height of the application window
