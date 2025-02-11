@@ -11,7 +11,13 @@
 
 ### Building yourself
 
-The project is built using the rust nightly toolchain.
+The following dependencies are needed:
+- gtk4
+- gtk4-layer-shell
+
+> Depending on your distribution the names may differ, the above names are for the Arch and AUR packages
+
+The project is built using the rust nightly toolchain, make sure you're using it for this build.
 
 ```bash
 # clone the repository with it's submodules
