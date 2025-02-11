@@ -2,8 +2,8 @@ use std::path::Path;
 
 use clap::{Parser, Subcommand};
 
-const CONFIG_PATH: &str = ".config/hyprland-share-picker/config.yaml";
-const LOG_PATH: &str = "hyprland-share-picker.log";
+const CONFIG_PATH: &str = ".config/hyprland-preview-share-picker/config.yaml";
+const LOG_PATH: &str = "hyprland-preview-share-picker.log";
 
 #[derive(Parser)]
 pub struct Cli {

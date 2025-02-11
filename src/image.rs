@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use gtk4::gdk_pixbuf::Pixbuf;
 use hyprland::data::Transforms;
-use hyprland_share_picker_protocols::buffer::Buffer;
+use hyprland_preview_share_picker_protocols::buffer::Buffer;
 use image::{RgbImage, RgbaImage, imageops::resize};
 
 /// Xrgb8888 buffered image (as returned by hyprland) stored as a rgba image

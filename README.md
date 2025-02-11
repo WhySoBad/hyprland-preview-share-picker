@@ -1,4 +1,4 @@
-# hyprland-share-picker
+# hyprland-preview-share-picker
 
 <div align="center" justify="center">
   <img width="90%" src="https://github.com/user-attachments/assets/0172f531-08b5-48c7-b167-32c6ce6535e8" />
@@ -7,9 +7,45 @@
     <i>the screenshot was made using a custom stylesheet, the widgets use the gtk theme per default <sup><a href="#customization">[1]</a></sup></i>
 </div>
 
+## Installation
+
+### Building yourself
+
+The project is built using the rust nightly toolchain.
+
+```bash
+# clone the repository with it's submodules
+git clone —recursive https://github.com/WhySoBad/hyprland-preview-share-picker
+
+cd hyprland-preview-share-picker
+
+# build the optimized release binary
+cargo build --release
+```
+The built binary is now available in the `target/release/hyprland-preview-share-picker` directory. If you want to install it directly using
+cargo you can use the following command. However, make sure the cargo binary directory is added to your path:
+
+```bash
+# install the package into your cargo binary directory
+cargo install --path .
+```
+
+## Usage
+
+Once installed, you need to change the [xdg-desktop-portal-hyprland screencopy configuration](https://wiki.hyprland.org/Hypr-Ecosystem/xdg-desktop-portal-hyprland/#category-screencopy) to use the `hyprland-preview-share-picker` binary as picker:
+
+```ini
+# ~/.config/hypr/xdph.conf
+screencopy {
+  custom_picker_binary = hyprland-preview-share-picker
+}
+```
+
+After changing the config the portal needs to be restarted.
+
 ## Configuration
 
-The default configuration path is `$XDG_CONFIG_DIR/hyprland-share-picker/config.yaml` with a fallback to `~/.config/hyprland-share-picker/config.yaml`.
+The default configuration path is `$XDG_CONFIG_DIR/hyprland-preview-share-picker/config.yaml` with a fallback to `~/.config/hyprland-preview-share-picker/config.yaml`.
 The configuration path can be overwritten using the `-c/--config` cli argument.
 
 Below is a configuration file with all fields and their default values:
@@ -86,5 +122,5 @@ It's possible to override most of the CSS classnames of the widgets used with th
 ### Custom frontend
 
 If you prefer to have a frontend in the ui toolkit of your choice or you dislike the layout of this frontend, it should be pretty straightforward to
-create your own frontend in rust. All of the wayland logic is located in the `hyprland-share-picker-protocols` project. By adding this as git dependency
+create your own frontend in rust. All of the wayland logic is located in the `hyprland-preview-share-picker-protocols` project. By adding this as git dependency
 to your project, most of the application logic should be taken care of.

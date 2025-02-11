@@ -13,14 +13,14 @@ use hyprland::{
     data::{Clients, Monitors},
     shared::HyprData,
 };
-use hyprland_share_picker_protocols::{frame::FrameManager, output::OutputManager};
+use hyprland_preview_share_picker_protocols::{frame::FrameManager, output::OutputManager};
 use regex::Regex;
 use rsass::{compile_scss, output};
 use wayland_client::Connection;
 
 use crate::{config::Config, image::Image, toplevel::Toplevel};
 
-const APP_ID: &str = "ch.wysbd.hyprland-screen-picker";
+const APP_ID: &str = "ch.wysbd.hyprland-preview-screen-picker";
 
 pub struct App {
     gtk_app: Application,

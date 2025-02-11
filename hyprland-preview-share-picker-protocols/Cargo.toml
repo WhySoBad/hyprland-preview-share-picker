@@ -1,5 +1,5 @@
 [package]
-name = "hyprland-share-picker-protocols"
+name = "hyprland-preview-share-picker-protocols"
 version = "0.1.0"
 edition = "2024"
 
