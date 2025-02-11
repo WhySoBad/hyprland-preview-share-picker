@@ -16,6 +16,8 @@ pub struct Config {
     ///
     /// the paths are relative to the location of the config file
     pub stylesheets: Vec<String>,
+    /// hide the token restore checkbox and use the default value instead
+    pub hide_token_restore: bool,
     /// all config related to images
     pub image: ImageConfig,
     /// config for customizing widget css classes
@@ -106,6 +108,7 @@ impl Default for Config {
             region: RegionConfig::default(),
             outputs: OutputsConfig::default(),
             windows: WindowsConfig::default(),
+            hide_token_restore: false,
         }
     }
 }
@@ -164,6 +167,8 @@ pub struct ClassesConfig {
     pub notebook_page: String,
     /// class applied to the button which triggers the region selection
     pub region_button: String,
+    /// class applied to the button containing the session restore checkbox and label
+    pub restore_button: String,
 }
 
 impl Default for ClassesConfig {
@@ -177,6 +182,7 @@ impl Default for ClassesConfig {
             tab_label: String::from("tab-label"),
             notebook_page: String::from("page"),
             region_button: String::from("region-button"),
+            restore_button: String::from("restore-button"),
         }
     }
 }

@@ -6,6 +6,7 @@ const CONFIG_PATH: &str = ".config/hyprland-preview-share-picker/config.yaml";
 const LOG_PATH: &str = "hyprland-preview-share-picker.log";
 
 #[derive(Parser)]
+#[clap(version, author, about)]
 pub struct Cli {
     #[arg(global = true, long, short, default_value_t = get_default_config_path())]
     /// Alternative path to a config file
@@ -22,6 +23,10 @@ pub struct Cli {
     #[arg(long, short)]
     /// Start the gtk inspector on application launch
     pub inspect: bool,
+
+    #[arg(long = "allow-token", short)]
+    /// Allow the restore token by default
+    pub allow_token_by_default: bool,
 
     #[command(subcommand)]
     pub command: Option<Command>,

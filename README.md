@@ -85,6 +85,8 @@ classes:
   notebook_page: page
   # css classname of the region selection button
   region_button: region-button
+  # css classname of the button containing the session restore checkbox and label
+  restore_button: restore-button
 
 windows:
   # minimum amount of image cards per row on the windows page
@@ -102,6 +104,9 @@ region:
   # command to run for region selection
   # the output needs to be in the <output>@<x>,<y>,<w>,<h> (e.g. DP-3@2789,436,756,576) format
   command: slurp -f '%o@%x,%y,%w,%h'
+
+# hide the token restore checkbox and use the default value instead
+hide_token_restore: false
 ```
 
 <details>

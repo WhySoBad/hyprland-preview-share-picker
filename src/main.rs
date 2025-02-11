@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             log::debug!("got toplevels {toplevels:#?}");
 
-            let app = App::build(cli.inspect, config, toplevels);
+            let app = App::build(cli.inspect, config, toplevels, cli.allow_token_by_default);
             app.run();
         }
         Some(cli::Command::Schema) => {
