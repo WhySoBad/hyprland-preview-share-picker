@@ -158,6 +158,8 @@ pub struct ClassesConfig {
     pub window: String,
     /// class applied to the card holding the image and label
     pub image_card: String,
+    /// class applied to the card holding the image and label when the image is being loaded
+    pub image_card_loading: String,
     /// class applied to the image widget
     pub image: String,
     /// class applied to the image label widget
@@ -179,6 +181,7 @@ impl Default for ClassesConfig {
         Self {
             window: String::from("window"),
             image_card: String::from("card"),
+            image_card_loading: String::from("card-loading"),
             image: String::from("image"),
             image_label: String::from("image-label"),
             notebook: String::from("notebook"),

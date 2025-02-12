@@ -11,4 +11,4 @@
 
 - [x] Configurable default tab
 
-- [ ] Lazily load the picture buffer rather than blocking until all frames are captured
+- [x] Lazily load the picture buffer rather than blocking until all frames are captured

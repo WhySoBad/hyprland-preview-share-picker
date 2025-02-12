@@ -144,6 +144,8 @@ classes:
   window: window
   # css classname of the card containing an image and a label
   image_card: card
+  # css classname of the card containing an image and a label when the image is still being loaded
+  image_card_loading: card-loading
   # css classname of the image inside the card
   image: image
   # css classname of the label inside the card

@@ -46,6 +46,7 @@ pub struct Output {
     pub geometry: Option<Geometry>,
 }
 
+#[derive(Clone)]
 pub struct OutputManager {
     shm: Option<WlShm>,
     manager: Option<ZwlrScreencopyManagerV1>,

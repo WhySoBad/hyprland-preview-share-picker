@@ -8,12 +8,12 @@ use glib::variant::{StaticVariantType, ToVariant};
 use gtk4::{
     Application, ApplicationWindow, Box, Button, CheckButton, CssProvider, EventControllerKey, FlowBox, FlowBoxChild,
     GestureClick, Label, Notebook, Picture, STYLE_PROVIDER_PRIORITY_APPLICATION, ScrolledWindow, Widget,
-    gdk::{Display, Texture},
+    gdk::Display,
     gio::{
         ActionEntry,
         prelude::{ActionMapExtManual, ApplicationExt, ApplicationExtManual},
     },
-    glib::{ExitCode, clone, object::IsA, spawn_future_local},
+    glib::{ExitCode, clone, object::IsA},
     prelude::{BoxExt, ButtonExt, CheckButtonExt, EventControllerExt, FlowBoxChildExt, GtkWindowExt, WidgetExt},
 };
 use gtk4_layer_shell::*;
@@ -213,8 +213,8 @@ fn build_windows_view(con: &Connection, toplevels: &Vec<Toplevel>, config: &Conf
         .build();
     scrolled_container.set_child(Some(&container));
 
-    let mut manager = match FrameManager::new(con) {
-        Ok(manager) => manager,
+    let manager = match FrameManager::new(con) {
+        Ok(manager) => std::sync::Arc::new(manager),
         Err(err) => {
             log::error!("unable to create new frame manager from connection: {err}");
             return scrolled_container;
@@ -238,26 +238,62 @@ fn build_windows_view(con: &Connection, toplevels: &Vec<Toplevel>, config: &Conf
         };
 
         let handle = u64::from_str_radix(format!("{}", client.address)[2..].as_ref(), 16).expect("should be valid u64");
-        let buffer = match manager.capture_frame(handle) {
-            Ok(buf) => buf,
-            Err(err) => return log::error!("unable to capture frame for toplevel {}: {}", toplevel.id, err),
-        };
-        let mut img = match Image::new(buffer) {
-            Ok(img) => match img.into_rgb() {
-                Ok(img) => img,
-                Err(err) => return log::error!("unable to convert Xrgb image to rgb: {err}"),
-            },
-            Err(err) => return log::error!("unable to create image from buffer: {err}"),
-        };
 
-        img.resize_to_fit(config.image.resize_size);
-        let card = match build_image_with_label(img, toplevel.title.as_str(), config) {
-            Ok(card) => card,
-            Err(err) => return log::error!("unable to create image with label for toplevel {}: {err}", toplevel.id),
-        };
+        let resize_size = config.image.resize_size;
+        let id = toplevel.id;
+        let (card, image) = build_image_with_label(toplevel.title.as_str(), config);
+        let (tx, rx) = tokio::sync::oneshot::channel();
+
+        tokio::spawn(clone!(
+            #[to_owned]
+            manager,
+            async move {
+                let mut manager = manager;
+                let buffer = match manager.capture_frame(handle) {
+                    Ok(buffer) => buffer,
+                    Err(err) => return log::error!("unable to capture frame for toplevel {id}: {err}"),
+                };
+                let mut img = match Image::new(buffer) {
+                    Ok(img) => match img.into_rgb() {
+                        Ok(img) => img,
+                        Err(err) => return log::error!("unable to convert Xrgb image to rgb: {err}"),
+                    },
+                    Err(err) => return log::error!("unable to create image from buffer: {err}"),
+                };
+
+                img.resize_to_fit(resize_size);
+
+                if let Err(_) = tx.send(img) {
+                    log::error!("unable to transmit image for toplevel {id}: channel is closed");
+                };
+            }
+        ));
+
+        let card_loading_css = config.classes.image_card_loading.clone();
+        glib::spawn_future_local(clone!(
+            #[strong]
+            card,
+            async move {
+                let img = match rx.await {
+                    Ok(img) => img,
+                    Err(err) => {
+                        log::error!("unable to receive image for toplevel {id}: {err}");
+                        card.remove_css_class(&card_loading_css.as_str());
+                        return;
+                    }
+                };
+
+                let pixbuf = match img.into_pixbuf() {
+                    Ok(pixbuf) => pixbuf,
+                    Err(err) => return log::error!("unable to create pixbuf for toplevel {id} image: {err}"),
+                };
+                image.set_pixbuf(Some(&pixbuf));
+                card.remove_css_class(&card_loading_css.as_str());
+            }
+        ));
+
         let flowbox_child = FlowBoxChild::builder().halign(gtk4::Align::Fill).valign(gtk4::Align::Fill).child(&card).build();
 
-        let id = toplevel.id;
         let gesture = GestureClick::new();
         gesture.connect_released(move |gesture, n, _, _| {
             if n != 2 {
@@ -298,8 +334,8 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
 
     scrolled_container.set_child(Some(&container));
 
-    let mut manager = match OutputManager::new(con) {
-        Ok(manager) => manager,
+    let manager = match OutputManager::new(con) {
+        Ok(manager) => std::sync::Arc::new(manager),
         Err(err) => {
             log::error!("unable to create new output manager from connection: {err}");
             return scrolled_container;
@@ -319,27 +355,67 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
             Some(name) => name,
             None => return log::error!("output {output:?} does not have a name"),
         };
-        let buffer = match manager.capture_output(&wl_output) {
-            Ok(buffer) => buffer,
-            Err(err) => return log::error!("unable to capture output {name}: {err}"),
-        };
-        let mut img = match Image::new(buffer) {
-            Ok(img) => match img.into_rgb() {
-                Ok(img) => img,
-                Err(err) => return log::error!("unable to convert Xrgb image to rgb: {err}"),
-            },
-            Err(err) => return log::error!("unable to create image from buffer: {err}"),
-        };
+        let monitor = monitors.iter().find(|m| m.name.eq(&name)).cloned();
 
-        if let Some(monitor) = monitors.iter().find(|m| m.name.eq(&name)) {
-            img = img.transform(monitor.transform.into());
-        }
+        let resize_size = config.image.resize_size;
+        let (card, image) = build_image_with_label(name.as_str(), config);
+        let (tx, rx) = tokio::sync::oneshot::channel();
 
-        img.resize_to_fit(config.image.resize_size);
-        let card = match build_image_with_label(img, name.as_str(), config) {
-            Ok(card) => card,
-            Err(err) => return log::error!("unable to create image with label for output {name}: {err}"),
-        };
+        tokio::spawn(clone!(
+            #[strong]
+            name,
+            #[to_owned]
+            manager,
+            async move {
+                let mut manager = manager;
+                let buffer = match manager.capture_output(&wl_output) {
+                    Ok(buffer) => buffer,
+                    Err(err) => return log::error!("unable to capture output {name}: {err}"),
+                };
+                let mut img = match Image::new(buffer) {
+                    Ok(img) => match img.into_rgb() {
+                        Ok(img) => img,
+                        Err(err) => return log::error!("unable to convert Xrgb image to rgb: {err}"),
+                    },
+                    Err(err) => return log::error!("unable to create image from buffer: {err}"),
+                };
+
+                img.resize_to_fit(resize_size);
+                if let Some(monitor) = monitor {
+                    img = img.transform(monitor.transform.into());
+                }
+
+                if let Err(_) = tx.send(img) {
+                    log::error!("unable to transmit image for name {name}: channel is closed");
+                };
+            }
+        ));
+
+        let card_loading_css = config.classes.image_card_loading.clone();
+        glib::spawn_future_local(clone!(
+            #[strong]
+            name,
+            #[strong]
+            card,
+            async move {
+                let img = match rx.await {
+                    Ok(img) => img,
+                    Err(err) => {
+                        log::error!("unable to receive image for output {name}: {err}");
+                        card.remove_css_class(&card_loading_css.as_str());
+                        return;
+                    }
+                };
+
+                let pixbuf = match img.into_pixbuf() {
+                    Ok(pixbuf) => pixbuf,
+                    Err(err) => return log::error!("unable to create pixbuf for output {name} image: {err}"),
+                };
+                image.set_pixbuf(Some(&pixbuf));
+                card.remove_css_class(&card_loading_css.as_str());
+            }
+        ));
+
         let flowbox_child = FlowBoxChild::builder().halign(gtk4::Align::Fill).valign(gtk4::Align::Fill).child(&card).build();
 
         let gesture = GestureClick::new();
@@ -400,7 +476,7 @@ fn build_region_view(config: &Config) -> impl IsA<Widget> {
                 root.hide();
 
                 let region_regex = region_regex.clone();
-                spawn_future_local(async move {
+                glib::spawn_future_local(async move {
                     match command.output() {
                         Ok(output) => {
                             let region = String::from_utf8_lossy(&output.stdout);
@@ -444,27 +520,23 @@ fn build_restore_checkbox(restore_token: Rc<RefCell<bool>>, config: &Config) -> 
     button
 }
 
-fn build_image_with_label(
-    image: Image,
-    label_text: &str,
-    config: &Config,
-) -> Result<impl IsA<Widget>, std::boxed::Box<dyn std::error::Error>> {
+fn build_image_with_label(label_text: &str, config: &Config) -> (impl IsA<Widget>, Picture) {
     let container = Box::builder()
         .orientation(gtk4::Orientation::Vertical)
         .vexpand(false)
         .hexpand(false)
         .halign(gtk4::Align::Fill)
         .valign(gtk4::Align::Fill)
-        .css_classes([config.classes.image_card.as_str()])
+        .css_classes([config.classes.image_card.as_str(), config.classes.image_card_loading.as_str()])
         .build();
-    let pixbuf = image.into_pixbuf()?;
 
-    let texture = Texture::for_pixbuf(&pixbuf);
-    let image = Picture::for_paintable(&texture);
-    image.set_vexpand(true);
-    image.set_valign(gtk4::Align::Center);
-    drop(texture);
-    drop(pixbuf);
+    let image = Picture::builder()
+        .vexpand(true)
+        .valign(gtk4::Align::Center)
+        .height_request(config.image.widget_size)
+        .content_fit(gtk4::ContentFit::Contain)
+        .css_classes([config.classes.image.as_str()])
+        .build();
 
     let label = Label::builder()
         .max_width_chars(1)
@@ -475,12 +547,8 @@ fn build_image_with_label(
         .hexpand(false)
         .build();
 
-    image.set_css_classes(&[config.classes.image.as_str()]);
-    image.set_height_request(config.image.widget_size);
-    image.set_content_fit(gtk4::ContentFit::Contain);
-
     container.append(&image);
     container.append(&label);
 
-    Ok(container)
+    (container, image)
 }

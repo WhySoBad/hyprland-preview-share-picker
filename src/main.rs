@@ -11,7 +11,8 @@ mod cli;
 mod config;
 mod image;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     let log_file = Box::new(std::fs::File::create(cli.logs).expect("unable to create log file"));
     env_logger::Builder::new()

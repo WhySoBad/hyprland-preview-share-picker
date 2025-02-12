@@ -14,6 +14,7 @@ use crate::{
 };
 use std::sync::{Arc, Mutex, Weak};
 
+#[derive(Clone)]
 pub struct FrameManager {
     shm: Option<WlShm>,
     manager: Option<HyprlandToplevelExportManagerV1>,
