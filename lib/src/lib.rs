@@ -2,7 +2,7 @@
 
 pub mod buffer;
 pub mod frame;
-pub mod output;
 pub mod image;
-pub mod toplevel;
+pub mod output;
 mod protocols;
+pub mod toplevel;

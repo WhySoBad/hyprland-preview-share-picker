@@ -9,11 +9,74 @@
 
 ## Installation
 
+### Using pacman
+
+The following `PKGBUILD` can be used to build and install the package locally. Simply copy the `PKGBUILD` source to an empty directory on your system and install the package and all it's dependencies using `makepkg -si`
+
+<details>
+<summary><b>PKGBUILD source</b></summary>
+
+```bash
+pkgname="hyprland-preview-share-picker-git"
+pkgver=v0.1.0
+pkgrel=1
+pkgdesc="An alternative share picker for hyprland with window and monitor previews"
+arch=(x86_64)
+url="https://github.com/WhySoBad/hyprland-preview-share-picker"
+license=(MIT)
+depends=('gtk4' 'gtk4-layer-shell' 'xdg-desktop-portal-hyprland' 'hyprland')
+makedepends=(cargo-nightly)
+optdepends=(
+  'slurp: default tool for selecting share regions'
+)
+source=("$pkgname::git+https://github.com/WhySoBad/hyprland-preview-share-picker")
+md5sums=('SKIP')
+
+pkgver() {
+    cd "$pkgname"
+    git describe --long --abbrev=7 --tags | sed 's/\([^-]*-g\)/r\1/;s/-/./g'
+}
+
+prepare() {
+    cd "$pkgname"
+    git submodule init
+    git config submodule.subprojects/lib.url "$srcdir/lib"
+    git -c protocol.file.allow=always submodule update
+
+    export RUSTUP_TOOLCHAIN=nightly
+    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+    cd "$pkgname"
+
+    export RUSTUP_TOOLCHAIN=nightly
+    export CARGO_TARGET_DIR=target
+
+    cargo build --frozen --release
+
+    ./target/release/hyprland-preview-share-picker schema > schema.json
+}
+
+package() {
+    cd "$pkgname"
+
+    install -Dm0755 -T "target/release/hyprland-preview-share-picker" "$pkgdir/usr/bin/hyprland-preview-share-picker"
+
+    install -dm0755 "$pkgdir/usr/share/hyprland-preview-share-picker"
+    install -Dm0644 "schema.json" "$pkgdir/usr/share/hyprland-preview-share-picker"
+}
+```
+
+</details>
+
 ### Building yourself
 
 The following dependencies are needed:
 - gtk4
 - gtk4-layer-shell
+- xdg-desktop-portal-hyprland (xdg-desktop-portal-hyprland-git)
+- hyprland (hyprland-git)
 
 > Depending on your distribution the names may differ, the above names are for the Arch and AUR packages
 

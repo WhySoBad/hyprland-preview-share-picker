@@ -111,7 +111,7 @@ impl Default for Config {
             outputs: OutputsConfig::default(),
             windows: WindowsConfig::default(),
             hide_token_restore: false,
-            default_page: Page::default()
+            default_page: Page::default(),
         }
     }
 }
@@ -245,5 +245,5 @@ pub enum Page {
     #[default]
     Windows,
     Outputs,
-    Region
+    Region,
 }

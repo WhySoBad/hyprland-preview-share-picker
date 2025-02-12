@@ -1,6 +1,9 @@
 use std::rc::Rc;
 
-use image::{imageops::{flip_vertical_in_place, resize, rotate180_in_place, rotate270, rotate90}, RgbImage, RgbaImage};
+use image::{
+    RgbImage, RgbaImage,
+    imageops::{flip_vertical_in_place, resize, rotate90, rotate180_in_place, rotate270},
+};
 
 use crate::buffer::Buffer;
 
@@ -74,34 +77,34 @@ impl Image {
                 ImageKind::Rgb(image_buffer) => {
                     flip_vertical_in_place(image_buffer);
                     ImageKind::Rgb(rotate90(image_buffer))
-                },
+                }
                 ImageKind::Xrgb(image_buffer) => {
                     flip_vertical_in_place(image_buffer);
                     ImageKind::Xrgb(rotate90(image_buffer))
-                },
+                }
             },
             Transforms::Flipped180 => {
                 match &mut self.buffer {
                     ImageKind::Rgb(image_buffer) => {
                         flip_vertical_in_place(image_buffer);
                         rotate180_in_place(image_buffer);
-                    },
+                    }
                     ImageKind::Xrgb(image_buffer) => {
                         flip_vertical_in_place(image_buffer);
                         rotate180_in_place(image_buffer);
                     }
                 };
                 self.buffer
-            },
+            }
             Transforms::Flipped270 => match &mut self.buffer {
                 ImageKind::Rgb(image_buffer) => {
                     flip_vertical_in_place(image_buffer);
                     ImageKind::Rgb(rotate270(image_buffer))
-                },
+                }
                 ImageKind::Xrgb(image_buffer) => {
                     flip_vertical_in_place(image_buffer);
                     ImageKind::Xrgb(rotate270(image_buffer))
-                },
+                }
             },
         };
 

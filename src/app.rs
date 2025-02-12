@@ -21,7 +21,7 @@ use hyprland::{
     data::{Clients, Monitors},
     shared::HyprData,
 };
-use hyprland_preview_share_picker_lib::{frame::FrameManager, image::Image, toplevel::Toplevel, output::OutputManager};
+use hyprland_preview_share_picker_lib::{frame::FrameManager, image::Image, output::OutputManager, toplevel::Toplevel};
 use regex::Regex;
 use rsass::{compile_scss, output};
 use wayland_client::Connection;
