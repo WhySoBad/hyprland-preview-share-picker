@@ -1,6 +1,7 @@
-use std::rc::Rc;
-
-use image::{imageops::{flip_vertical_in_place, resize, rotate180_in_place, rotate270, rotate90}, RgbImage, RgbaImage};
+use image::{
+    RgbImage, RgbaImage,
+    imageops::{flip_vertical_in_place, resize, rotate90, rotate180_in_place, rotate270},
+};
 
 use crate::buffer::Buffer;
 
@@ -19,9 +20,9 @@ pub struct Image {
 
 impl Image {
     /// create a new image from a buffer storing a frame
-    pub fn new(buffer: Rc<Buffer>) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(buffer: Buffer) -> Result<Self, Box<dyn std::error::Error>> {
         let bytes = buffer.get_bytes()?;
-        buffer.destroy()?;
+        buffer.destroy();
         let img = match XrgbImage::from_vec(buffer.width, buffer.height, bytes) {
             Some(img) => Self { buffer: ImageKind::Xrgb(img), aspect_ratio: buffer.width as f64 / buffer.height as f64 },
             None => return Err(Box::from("failed to create xrgb image from buffer")),
@@ -74,34 +75,34 @@ impl Image {
                 ImageKind::Rgb(image_buffer) => {
                     flip_vertical_in_place(image_buffer);
                     ImageKind::Rgb(rotate90(image_buffer))
-                },
+                }
                 ImageKind::Xrgb(image_buffer) => {
                     flip_vertical_in_place(image_buffer);
                     ImageKind::Xrgb(rotate90(image_buffer))
-                },
+                }
             },
             Transforms::Flipped180 => {
                 match &mut self.buffer {
                     ImageKind::Rgb(image_buffer) => {
                         flip_vertical_in_place(image_buffer);
                         rotate180_in_place(image_buffer);
-                    },
+                    }
                     ImageKind::Xrgb(image_buffer) => {
                         flip_vertical_in_place(image_buffer);
                         rotate180_in_place(image_buffer);
                     }
                 };
                 self.buffer
-            },
+            }
             Transforms::Flipped270 => match &mut self.buffer {
                 ImageKind::Rgb(image_buffer) => {
                     flip_vertical_in_place(image_buffer);
                     ImageKind::Rgb(rotate270(image_buffer))
-                },
+                }
                 ImageKind::Xrgb(image_buffer) => {
                     flip_vertical_in_place(image_buffer);
                     ImageKind::Xrgb(rotate270(image_buffer))
-                },
+                }
             },
         };
 

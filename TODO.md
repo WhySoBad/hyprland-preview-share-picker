@@ -1,6 +1,6 @@
 # TODO's
 
-- [ ] Make protocol implementation smoother -> at the moment the frame/output managers can only
+- [x] Make protocol implementation smoother -> at the moment the frame/output managers can only
       process one requests sequentially which is an artifical limitation (use `RwLock` for data)
 
 - [x] Support restore tokens (also support `allow_token_by_default` xdph config option)
@@ -10,3 +10,5 @@
 - [ ] Cache compiled SCSS stylesheets to fasten startup
 
 - [x] Configurable default tab
+
+- [ ] Lazily load the picture buffer rather than blocking until all frames are captured

@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::{Arc, Mutex, Weak};
 
 use wayland_client::{
     Connection, Dispatch, EventQueue, delegate_noop,
@@ -15,7 +15,7 @@ use wayland_protocols_wlr::screencopy::v1::client::{
     zwlr_screencopy_manager_v1::ZwlrScreencopyManagerV1,
 };
 
-use crate::{buffer::Buffer, frame::FrameStatus};
+use crate::{Frame, buffer::Buffer, error::Error};
 
 #[derive(Debug, Clone)]
 pub struct Geometry {
@@ -51,59 +51,50 @@ pub struct OutputManager {
     manager: Option<ZwlrScreencopyManagerV1>,
     pub outputs: Vec<(WlOutput, Output)>,
     intialized_outputs: u32,
-    status: FrameStatus,
     connection: Connection,
 }
 
 impl OutputManager {
-    pub fn new(connection: &Connection) -> Result<Self, Box<dyn std::error::Error>> {
+    /// setup a new output manager which can be used to capture one or more frames of outputs or of selected regions
+    pub fn new(connection: &Connection) -> Result<Self, Error> {
         let display = connection.display();
 
         let mut event_queue = connection.new_event_queue();
         let handle = event_queue.handle();
 
-        let mut manager = Self {
-            shm: None,
-            manager: None,
-            outputs: Vec::new(),
-            intialized_outputs: 0,
-            status: FrameStatus::Inactive,
-            connection: connection.clone(),
-        };
+        let mut manager =
+            Self { shm: None, manager: None, outputs: Vec::new(), intialized_outputs: 0, connection: connection.clone() };
 
         display.get_registry(&handle, ());
 
-        event_queue.roundtrip(&mut manager)?;
+        event_queue.roundtrip(&mut manager).map_err(|err| Error::WaylandDispatch(err))?;
 
         if let None = manager.manager {
-            return Err(Box::from("zwlr screencopy manager v1 is not available"));
+            Err(Error::ProtocolNotAvailable(std::any::type_name::<ZwlrScreencopyManagerV1>()))?
         }
         if let None = manager.shm {
-            return Err(Box::from("wl shm is not available"));
+            Err(Error::ProtocolNotAvailable(std::any::type_name::<WlShm>()))?
         }
 
-        event_queue.roundtrip(&mut manager)?;
+        event_queue.roundtrip(&mut manager).map_err(|err| Error::WaylandDispatch(err))?;
 
         Ok(manager)
     }
 
-    pub fn capture_output(&mut self, output: &WlOutput) -> Result<Rc<Buffer>, Box<dyn std::error::Error>> {
-        let &FrameStatus::Inactive = &self.status else {
-            return Err(Box::from("output manager is not in inactive status"));
-        };
-
+    /// capture a single frame buffer of an output
+    pub fn capture_output(&mut self, output: &WlOutput) -> Result<Buffer, Error> {
         let Some(zwlr_manager) = &self.manager else {
-            return Err(Box::from("zwlr screencopy manager is not available"));
+            Err(Error::ProtocolNotAvailable(std::any::type_name::<ZwlrScreencopyManagerV1>()))?
         };
 
-        self.status = FrameStatus::Active;
-
+        let frame = Arc::new(Mutex::new(Frame::default()));
         let mut event_queue = self.connection.new_event_queue();
         let handle = event_queue.handle();
-        let zwlr_frame = zwlr_manager.capture_output(0, output, &handle, ());
-        self.finish_capture(zwlr_frame, &mut event_queue)
+        let zwlr_frame = zwlr_manager.capture_output(0, output, &handle, Arc::downgrade(&frame));
+        self.finish_capture(frame, zwlr_frame, &mut event_queue)
     }
 
+    /// capture a selected region of an output
     pub fn capture_output_region(
         &mut self,
         output: &WlOutput,
@@ -111,57 +102,56 @@ impl OutputManager {
         y: i32,
         width: i32,
         height: i32,
-    ) -> Result<Rc<Buffer>, Box<dyn std::error::Error>> {
-        let &FrameStatus::Inactive = &self.status else {
-            return Err(Box::from("output manager is not in inactive status"));
-        };
-
+    ) -> Result<Buffer, Error> {
         let Some(zwlr_manager) = &self.manager else {
-            return Err(Box::from("zwlr screencopy manager is not available"));
+            Err(Error::ProtocolNotAvailable(std::any::type_name::<ZwlrScreencopyManagerV1>()))?
         };
 
-        self.status = FrameStatus::Active;
-
+        let frame = Arc::new(Mutex::new(Frame::default()));
         let mut event_queue = self.connection.new_event_queue();
         let handle = event_queue.handle();
-        let zwlr_frame = zwlr_manager.capture_output_region(0, output, x, y, width, height, &handle, ());
-        self.finish_capture(zwlr_frame, &mut event_queue)
+        let zwlr_frame = zwlr_manager.capture_output_region(0, output, x, y, width, height, &handle, Arc::downgrade(&frame));
+        self.finish_capture(frame, zwlr_frame, &mut event_queue)
     }
 
     fn finish_capture(
         &mut self,
+        frame: Arc<Mutex<Frame>>,
         zwlr_frame: ZwlrScreencopyFrameV1,
         event_queue: &mut EventQueue<OutputManager>,
-    ) -> Result<Rc<Buffer>, Box<dyn std::error::Error>> {
+    ) -> Result<Buffer, Error> {
         loop {
             if let Err(err) = event_queue.blocking_dispatch(self) {
-                self.status = FrameStatus::Inactive;
-                Err(err)?;
+                Err(Error::WaylandDispatch(err))?;
             }
-            match &self.status {
-                FrameStatus::FrameReady(buffer) => {
-                    let buffer = buffer.clone();
+            let frame = frame.clone();
+            let mut current = frame.lock().expect("lock should not be poisoned");
+            match (current.ready, current.requested, &current.error, &current.buffer) {
+                (_, _, Some(_), _) | (true, _, _, Some(_)) => {
                     zwlr_frame.destroy();
-                    self.status = FrameStatus::Inactive;
-                    return Ok(buffer);
+                    break;
                 }
-                FrameStatus::BufferDone(buffer) => {
+                (false, false, _, Some(buffer)) => {
                     zwlr_frame.copy(&buffer.buffer);
-                    self.status = FrameStatus::FrameRequested(buffer.clone());
+                    current.requested = true;
                 }
-                FrameStatus::Error(err) => {
-                    let err = Box::from(format!("error during frame capture: {err}"));
-                    self.status = FrameStatus::Inactive;
-                    zwlr_frame.destroy();
+                _ => continue,
+            };
+        }
+
+        match Arc::into_inner(frame) {
+            Some(frame) => {
+                let frame = frame.into_inner().expect("lock should not be poisoned");
+                if let Some(err) = frame.error {
                     return Err(err);
                 }
-                FrameStatus::Failed => {
-                    self.status = FrameStatus::Inactive;
-                    zwlr_frame.destroy();
-                    return Err(Box::from("frame copy failed"));
+                if let Some(buffer) = frame.buffer {
+                    return Ok(buffer);
+                } else {
+                    unreachable!("we only exit the loop when buffer or error is some")
                 }
-                _ => {}
             }
+            None => unreachable!("we only exit the loop after waiting blockingly for all dispatchers"),
         }
     }
 }
@@ -234,39 +224,42 @@ impl Dispatch<wl_output::WlOutput, ()> for OutputManager {
     }
 }
 
-impl Dispatch<ZwlrScreencopyFrameV1, ()> for OutputManager {
+impl Dispatch<ZwlrScreencopyFrameV1, Weak<Mutex<Frame>>> for OutputManager {
     fn event(
         state: &mut Self,
         _proxy: &ZwlrScreencopyFrameV1,
         event: <ZwlrScreencopyFrameV1 as wayland_client::Proxy>::Event,
-        _data: &(),
+        data: &Weak<Mutex<Frame>>,
         _conn: &wayland_client::Connection,
         qhandle: &wayland_client::QueueHandle<Self>,
     ) {
+        let Some(data) = data.upgrade() else {
+            log::debug!(
+                "dispatcher for ZwlrScreencopyFrameV1 was called with event {event:?} but frame was already dropped"
+            );
+            return;
+        };
+        let mut frame = data.lock().expect("lock should not be poisoned");
         match event {
             zwlr_screencopy_frame_v1::Event::Buffer { format, width, height, stride } => {
-                let Ok(format) = format.into_result() else {
-                    state.status = FrameStatus::Error(Box::from("buffer format was not valid enum"));
-                    return;
+                let format = match format.into_result() {
+                    Ok(format) => format,
+                    Err(err) => return frame.error = Some(Error::ProtocolInvalidEnum(err)),
                 };
                 if let Some(shm) = &state.shm {
                     match Buffer::new(shm, width, height, stride, format, qhandle, ()) {
-                        Ok(buffer) => state.status = FrameStatus::BufferDone(Rc::new(buffer)),
-                        Err(err) => state.status = FrameStatus::Error(Box::from(format!("unable to create buffer: {err}"))),
+                        Ok(buffer) => frame.buffer = Some(buffer),
+                        Err(err) => frame.error = Some(err),
                     }
                 } else {
-                    state.status = FrameStatus::Error(Box::from("buffer event is called without having shm"));
+                    frame.error = Some(Error::ProtocolNotAvailable(std::any::type_name::<WlShm>()));
                 }
             }
             zwlr_screencopy_frame_v1::Event::Flags { .. } => {}
             zwlr_screencopy_frame_v1::Event::Ready { .. } => {
-                if let FrameStatus::FrameRequested(buffer) = &state.status {
-                    state.status = FrameStatus::FrameReady(buffer.clone())
-                } else {
-                    state.status = FrameStatus::Error(Box::from("received frame ready without having requested a frame"))
-                }
+                frame.ready = true;
             }
-            zwlr_screencopy_frame_v1::Event::Failed => state.status = FrameStatus::Failed,
+            zwlr_screencopy_frame_v1::Event::Failed => frame.error = Some(Error::Failed),
             zwlr_screencopy_frame_v1::Event::Damage { .. } => {}
             zwlr_screencopy_frame_v1::Event::LinuxDmabuf { .. } => {}
             zwlr_screencopy_frame_v1::Event::BufferDone => {}

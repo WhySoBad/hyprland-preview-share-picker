@@ -4,102 +4,90 @@ use wayland_client::{
 };
 
 use crate::{
+    Frame,
     buffer::Buffer,
+    error::Error,
     protocols::hyprland_toplevel_export_v1::{
         hyprland_toplevel_export_frame_v1::{self, HyprlandToplevelExportFrameV1},
         hyprland_toplevel_export_manager_v1::HyprlandToplevelExportManagerV1,
     },
 };
-use std::{boxed::Box, rc::Rc};
-
-#[derive(Default, Debug)]
-pub enum FrameStatus {
-    #[default]
-    Inactive,
-    Active,
-    FrameReady(Rc<Buffer>),
-    Failed,
-    FrameRequested(Rc<Buffer>),
-    BufferDone(Rc<Buffer>),
-    Error(Box<dyn std::error::Error>),
-}
+use std::sync::{Arc, Mutex, Weak};
 
 pub struct FrameManager {
     shm: Option<WlShm>,
     manager: Option<HyprlandToplevelExportManagerV1>,
-    pub status: FrameStatus,
     connection: Connection,
 }
 
 impl FrameManager {
-    /// setup a new frame manager which can be used to get one or more frames for windows
-    pub fn new(connection: &Connection) -> Result<Self, Box<dyn std::error::Error>> {
+    /// setup a new frame manager which can be used to capture one or more frames for windows
+    pub fn new(connection: &Connection) -> Result<Self, Error> {
         let display = connection.display();
 
         let mut event_queue = connection.new_event_queue();
         let handle = event_queue.handle();
 
-        let mut manager = Self { status: FrameStatus::Inactive, shm: None, manager: None, connection: connection.clone() };
+        let mut manager = Self { shm: None, manager: None, connection: connection.clone() };
 
         display.get_registry(&handle, ());
 
-        event_queue.roundtrip(&mut manager)?;
+        event_queue.roundtrip(&mut manager).map_err(|err| Error::WaylandDispatch(err))?;
 
         if let None = manager.manager {
-            return Err(Box::from("hyprland toplevel export manager v1 is not available"));
+            Err(Error::ProtocolNotAvailable(std::any::type_name::<HyprlandToplevelExportManagerV1>()))?
         }
         if let None = manager.shm {
-            return Err(Box::from("wl shm is not available"));
+            Err(Error::ProtocolNotAvailable(std::any::type_name::<WlShm>()))?
         }
 
         Ok(manager)
     }
 
-    /// capture a single frame buffer for a window handle
-    pub fn capture_frame(&mut self, window_handle: u64) -> Result<Rc<Buffer>, Box<dyn std::error::Error>> {
+    /// capture a single frame buffer of a window
+    pub fn capture_frame(&mut self, window_handle: u64) -> Result<Buffer, Error> {
         log::debug!("attempting to capture frame for window {window_handle}");
-        let &FrameStatus::Inactive = &self.status else {
-            return Err(Box::from("frame manager is not in inactive status"));
-        };
 
         let Some(hl_manager) = &self.manager else {
-            return Err(Box::from("hyprland toplevel export manager is not available"));
+            Err(Error::ProtocolNotAvailable(std::any::type_name::<HyprlandToplevelExportManagerV1>()))?
         };
 
-        self.status = FrameStatus::Active;
-
+        let frame = Arc::new(Mutex::new(Frame::default()));
         let mut event_queue = self.connection.new_event_queue();
         let handle = event_queue.handle();
-        let hl_frame = hl_manager.capture_toplevel(0, window_handle as u32, &handle, ());
+        let hl_frame = hl_manager.capture_toplevel(0, window_handle as u32, &handle, Arc::downgrade(&frame));
         loop {
             if let Err(err) = event_queue.blocking_dispatch(self) {
-                self.status = FrameStatus::Inactive;
-                Err(err)?;
+                Err(Error::WaylandDispatch(err))?;
             }
-            match &self.status {
-                FrameStatus::FrameReady(buffer) => {
-                    let buffer = buffer.clone();
+            let frame = frame.clone();
+            let mut current = frame.lock().expect("lock should not be poisoned");
+            match (current.ready, current.requested, &current.error, &current.buffer) {
+                (_, _, Some(_), _) | (true, _, _, Some(_)) => {
                     hl_frame.destroy();
-                    self.status = FrameStatus::Inactive;
-                    return Ok(buffer);
+                    break;
                 }
-                FrameStatus::BufferDone(buffer) => {
+                (false, false, _, Some(buffer)) => {
                     hl_frame.copy(&buffer.buffer, 1);
-                    self.status = FrameStatus::FrameRequested(buffer.clone());
+                    current.requested = true;
                 }
-                FrameStatus::Error(err) => {
-                    let err = Box::from(format!("error during frame capture: {err}"));
-                    self.status = FrameStatus::Inactive;
-                    hl_frame.destroy();
+                _ => continue,
+            };
+        }
+
+        match Arc::into_inner(frame) {
+            Some(frame) => {
+                let frame = frame.into_inner().expect("lock should not be poisoned");
+                if let Some(err) = frame.error {
                     return Err(err);
                 }
-                FrameStatus::Failed => {
-                    self.status = FrameStatus::Inactive;
-                    hl_frame.destroy();
-                    return Err(Box::from("frame copy failed"));
+                if let Some(buffer) = frame.buffer {
+                    return Ok(buffer);
+                } else {
+                    unreachable!("we only exit the loop when buffer or error is some")
                 }
-                _ => {}
             }
+            None => unreachable!("we only exit the loop after waiting blockingly for all dispatchers"),
         }
     }
 
@@ -138,41 +126,43 @@ impl Dispatch<wl_registry::WlRegistry, ()> for FrameManager {
     }
 }
 
-impl Dispatch<HyprlandToplevelExportFrameV1, ()> for FrameManager {
+impl Dispatch<HyprlandToplevelExportFrameV1, Weak<Mutex<Frame>>> for FrameManager {
     fn event(
         state: &mut Self,
         _proxy: &HyprlandToplevelExportFrameV1,
         event: <HyprlandToplevelExportFrameV1 as wayland_client::Proxy>::Event,
-        _data: &(),
+        data: &Weak<Mutex<Frame>>,
         _conn: &Connection,
         qhandle: &wayland_client::QueueHandle<Self>,
     ) {
-        log::debug!("HyprlandToplevelExportFrameV1 event: {event:?}");
+        let Some(data) = data.upgrade() else {
+            log::debug!(
+                "dispatcher for HyprlandToplevelExportFrameV1 was called with event {event:?} but frame was already dropped"
+            );
+            return;
+        };
+        let mut frame = data.lock().expect("lock should not be poisoned");
         match event {
             hyprland_toplevel_export_frame_v1::Event::Buffer { format, width, height, stride } => {
-                let Ok(format) = format.into_result() else {
-                    state.status = FrameStatus::Error(Box::from("buffer format was not valid enum"));
-                    return;
+                let format = match format.into_result() {
+                    Ok(format) => format,
+                    Err(err) => return frame.error = Some(Error::ProtocolInvalidEnum(err)),
                 };
                 if let Some(shm) = &state.shm {
                     match Buffer::new(shm, width, height, stride, format, qhandle, ()) {
-                        Ok(buffer) => state.status = FrameStatus::BufferDone(Rc::new(buffer)),
-                        Err(err) => state.status = FrameStatus::Error(Box::from(format!("unable to create buffer: {err}"))),
+                        Ok(buffer) => frame.buffer = Some(buffer),
+                        Err(err) => frame.error = Some(err),
                     }
                 } else {
-                    state.status = FrameStatus::Error(Box::from("buffer event is called without having shm"));
+                    frame.error = Some(Error::ProtocolNotAvailable(std::any::type_name::<WlShm>()));
                 }
             }
             hyprland_toplevel_export_frame_v1::Event::Damage { .. } => {}
             hyprland_toplevel_export_frame_v1::Event::Flags { .. } => {}
             hyprland_toplevel_export_frame_v1::Event::Ready { .. } => {
-                if let FrameStatus::FrameRequested(buffer) = &state.status {
-                    state.status = FrameStatus::FrameReady(buffer.clone())
-                } else {
-                    state.status = FrameStatus::Error(Box::from("received frame ready without having requested a frame"))
-                }
+                frame.ready = true;
             }
-            hyprland_toplevel_export_frame_v1::Event::Failed => state.status = FrameStatus::Failed,
+            hyprland_toplevel_export_frame_v1::Event::Failed => frame.error = Some(Error::Failed),
             hyprland_toplevel_export_frame_v1::Event::LinuxDmabuf { .. } => {}
             hyprland_toplevel_export_frame_v1::Event::BufferDone => {}
         }
