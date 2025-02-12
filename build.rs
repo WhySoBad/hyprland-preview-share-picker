@@ -4,7 +4,7 @@ fn main() {
             Ok(output) => {
                 let str = String::from_utf8_lossy(&output.stdout);
                 let split = str.trim().split('-').collect::<Vec<_>>();
-                format!("{}-r{}-{}", split[0], split[1], split[2])
+                format!("{}-r{}-{}", &split[0][1..], split[1], split[2])
             }
             Err(err) => {
                 println!("cargo::warning=Unable to get git version: {err:#}");

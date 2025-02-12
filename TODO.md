@@ -1,7 +1,7 @@
 # TODO's
 
 - [ ] Make protocol implementation smoother -> at the moment the frame/output managers can only
-      process one requests sequentially which is an artifical limitation (use `RefCell` as data)
+      process one requests sequentially which is an artifical limitation (use `RwLock` for data)
 
 - [x] Support restore tokens (also support `allow_token_by_default` xdph config option)
 
@@ -9,4 +9,4 @@
 
 - [ ] Cache compiled SCSS stylesheets to fasten startup
 
-- [ ] Configurable default tab
+- [x] Configurable default tab

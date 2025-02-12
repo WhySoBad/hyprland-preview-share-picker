@@ -191,7 +191,8 @@ fn build_window(app: &Application, config: &Config) -> ApplicationWindow {
     window.add_controller(event_controller);
 
     window.init_layer_shell();
-    window.set_layer(Layer::Top);
+    window.set_namespace(APP_ID);
+    window.set_layer(Layer::Overlay);
     window.set_keyboard_mode(KeyboardMode::OnDemand);
     window.set_exclusive_zone(-1);
 
@@ -249,7 +250,7 @@ fn build_windows_view(con: &Connection, toplevels: &Vec<Toplevel>, config: &Conf
             Err(err) => return log::error!("unable to create image from buffer: {err}"),
         };
 
-        img.resize_to_fit_height(config.image.resize_size);
+        img.resize_to_fit(config.image.resize_size);
         let card = match build_image_with_label(img, toplevel.title.as_str(), config) {
             Ok(card) => card,
             Err(err) => return log::error!("unable to create image with label for toplevel {}: {err}", toplevel.id),
@@ -334,7 +335,7 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
             img = img.transform(monitor.transform.into());
         }
 
-        img.resize_to_fit_height(config.image.resize_size);
+        img.resize_to_fit(config.image.resize_size);
         let card = match build_image_with_label(img, name.as_str(), config) {
             Ok(card) => card,
             Err(err) => return log::error!("unable to create image with label for output {name}: {err}"),

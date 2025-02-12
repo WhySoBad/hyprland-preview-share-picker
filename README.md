@@ -34,7 +34,7 @@ md5sums=('SKIP')
 
 pkgver() {
     cd "$pkgname"
-    git describe --long --abbrev=7 --tags | sed 's/\([^-]*-g\)/r\1/;s/-/./g'
+    git describe --long --abbrev=7 --tags | sed -E 's/^[^0-9]*//;s/([^-]*-g)/r\1/;s/-/./g'
 }
 
 prepare() {
@@ -136,7 +136,7 @@ window:
 image:
   # size to which the images should be internally resized to reduce the memory footprint
   resize_size: 200
-  # target height of the image widget
+  # target size of the longer side of the image widget
   widget_size: 150
 
 classes:

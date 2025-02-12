@@ -1,9 +1,6 @@
 use std::rc::Rc;
 
-use image::{
-    RgbImage, RgbaImage,
-    imageops::{flip_vertical_in_place, resize, rotate90, rotate180_in_place, rotate270},
-};
+use image::{imageops::{flip_vertical_in_place, resize, rotate180_in_place, rotate270, rotate90}, RgbImage, RgbaImage};
 
 use crate::buffer::Buffer;
 
@@ -77,34 +74,34 @@ impl Image {
                 ImageKind::Rgb(image_buffer) => {
                     flip_vertical_in_place(image_buffer);
                     ImageKind::Rgb(rotate90(image_buffer))
-                }
+                },
                 ImageKind::Xrgb(image_buffer) => {
                     flip_vertical_in_place(image_buffer);
                     ImageKind::Xrgb(rotate90(image_buffer))
-                }
+                },
             },
             Transforms::Flipped180 => {
                 match &mut self.buffer {
                     ImageKind::Rgb(image_buffer) => {
                         flip_vertical_in_place(image_buffer);
                         rotate180_in_place(image_buffer);
-                    }
+                    },
                     ImageKind::Xrgb(image_buffer) => {
                         flip_vertical_in_place(image_buffer);
                         rotate180_in_place(image_buffer);
                     }
                 };
                 self.buffer
-            }
+            },
             Transforms::Flipped270 => match &mut self.buffer {
                 ImageKind::Rgb(image_buffer) => {
                     flip_vertical_in_place(image_buffer);
                     ImageKind::Rgb(rotate270(image_buffer))
-                }
+                },
                 ImageKind::Xrgb(image_buffer) => {
                     flip_vertical_in_place(image_buffer);
                     ImageKind::Xrgb(rotate270(image_buffer))
-                }
+                },
             },
         };
 
@@ -116,16 +113,18 @@ impl Image {
     }
 
     /// resize the image buffer such that the bigger of the two dimensions is `size` long
-    pub fn resize_to_fit_height(&mut self, height: u32) {
-        if match &self.buffer {
-            ImageKind::Rgb(image_buffer) => image_buffer.height(),
-            ImageKind::Xrgb(image_buffer) => image_buffer.height(),
-        } <= height
-        {
-            return;
+    pub fn resize_to_fit(&mut self, size: u32) {
+        let (width, height) = match &self.buffer {
+            ImageKind::Rgb(image_buffer) => (image_buffer.width(), image_buffer.height()),
+            ImageKind::Xrgb(image_buffer) => (image_buffer.width(), image_buffer.height()),
+        };
+        if height > width && width > size {
+            let height = (size as f64 / self.aspect_ratio) as u32;
+            self.resize(size, height);
+        } else if width > height && height > size {
+            let width = (size as f64 * self.aspect_ratio) as u32;
+            self.resize(width, size);
         }
-        let width = (height as f64 * self.aspect_ratio) as u32;
-        self.resize(width, height);
     }
 
     /// convert a possible xrgb image instance into a rgb image instance
