@@ -57,6 +57,7 @@ impl App {
         }
 
         app.gtk_app.connect_activate(move |app| {
+            log::debug!("gtk app is activated");
             build_ui(app, &config, &toplevels, restore_token);
         });
 
@@ -71,6 +72,7 @@ impl App {
 
 fn build_ui(app: &Application, config: &Config, toplevels: &Vec<Toplevel>, default_restore_token: bool) {
     let window = build_window(app, &config);
+    log::debug!("built application window");
     let window_container = Box::new(gtk4::Orientation::Vertical, 0);
     window.set_child(Some(&window_container));
 
@@ -123,10 +125,12 @@ fn build_ui(app: &Application, config: &Config, toplevels: &Vec<Toplevel>, defau
     window_container.append(&notebook);
 
     if !config.hide_token_restore {
+        log::debug!("building token restore widget");
         let restore_button = build_restore_checkbox(restore_token, config);
         window_container.append(&restore_button);
     }
 
+    log::debug!("presenting window");
     window.present();
 }
 
@@ -182,6 +186,7 @@ fn build_window(app: &Application, config: &Config) -> ApplicationWindow {
     event_controller.connect_key_pressed(|_, key, _, _| {
         match key {
             gtk4::gdk::Key::Escape => {
+                log::debug!("exiting: escape key pressed");
                 exit(0);
             }
             _ => (),
@@ -266,6 +271,7 @@ fn build_windows_view(con: &Connection, toplevels: &Vec<Toplevel>, config: &Conf
                 if let Err(_) = tx.send(img) {
                     log::error!("unable to transmit image for toplevel {id}: channel is closed");
                 };
+                log::debug!("transmitted image for toplevel {id}");
             }
         ));
 
@@ -282,6 +288,7 @@ fn build_windows_view(con: &Connection, toplevels: &Vec<Toplevel>, config: &Conf
                         return;
                     }
                 };
+                log::debug!("received image for toplevel {id}");
 
                 let pixbuf = match img.into_pixbuf() {
                     Ok(pixbuf) => pixbuf,
@@ -388,6 +395,7 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
                 if let Err(_) = tx.send(img) {
                     log::error!("unable to transmit image for name {name}: channel is closed");
                 };
+                log::debug!("transmitted image for output {name}");
             }
         ));
 
@@ -406,6 +414,7 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
                         return;
                     }
                 };
+                log::debug!("received image for output {name}");
 
                 let pixbuf = match img.into_pixbuf() {
                     Ok(pixbuf) => pixbuf,

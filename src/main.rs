@@ -5,6 +5,7 @@ use config::Config;
 use hyprland_preview_share_picker_lib::toplevel::Toplevel;
 use log::LevelFilter;
 use schemars::r#gen::SchemaSettings;
+use std::io::Write;
 
 mod app;
 mod cli;
@@ -18,13 +19,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::Builder::new()
         .target(env_logger::Target::Pipe(log_file))
         .filter(None, if cli.debug { LevelFilter::Debug } else { LevelFilter::Info })
+        .format(|buf, record| {
+            let now = chrono::Utc::now();
+            writeln!(
+                buf,
+                "[{} {:<5} {}] {}",
+                now.format("%Y-%m-%dT%H:%M:%S%.3fZ"),
+                record.level(),
+                record.target(),
+                record.args()
+            )
+        })
         .init();
+    log::debug!("initialized logger");
 
     match cli.command {
         None => {
             let config = Config::new(&cli.config);
             let toplevel_sharing_list = std::env::var("XDPH_WINDOW_SHARING_LIST").unwrap_or_default();
             let toplevels = Toplevel::parse(&toplevel_sharing_list);
+            log::debug!("using config: {config:#?}");
 
             log::debug!("got toplevels {toplevels:#?}");
 
