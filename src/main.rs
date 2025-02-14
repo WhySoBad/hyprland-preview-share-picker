@@ -15,10 +15,11 @@ mod image;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
+    let config = Config::new(&cli.config);
     let log_file = Box::new(std::fs::File::create(cli.logs).expect("unable to create log file"));
     env_logger::Builder::new()
         .target(env_logger::Target::Pipe(log_file))
-        .filter(None, if cli.debug { LevelFilter::Debug } else { LevelFilter::Info })
+        .filter(None, if cli.debug || config.debug { LevelFilter::Debug } else { LevelFilter::Info })
         .format(|buf, record| {
             let now = chrono::Utc::now();
             writeln!(
@@ -35,8 +36,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         None => {
-            let config = Config::new(&cli.config);
             let toplevel_sharing_list = std::env::var("XDPH_WINDOW_SHARING_LIST").unwrap_or_default();
+            log::debug!("XDPH_WINDOW_SHARING_LIST = {toplevel_sharing_list}");
             let toplevels = Toplevel::parse(&toplevel_sharing_list);
             log::debug!("using config: {config:#?}");
 

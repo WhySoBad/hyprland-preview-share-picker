@@ -30,6 +30,8 @@ pub struct Config {
     pub windows: WindowsConfig,
     /// config related to the outputs page
     pub outputs: OutputsConfig,
+    /// enable debug logs by default
+    pub debug: bool,
 }
 
 impl Config {
@@ -112,6 +114,7 @@ impl Default for Config {
             windows: WindowsConfig::default(),
             hide_token_restore: false,
             default_page: Page::default(),
+            debug: false,
         }
     }
 }

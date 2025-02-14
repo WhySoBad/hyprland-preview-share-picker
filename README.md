@@ -180,6 +180,8 @@ region:
 
 # hide the token restore checkbox and use the default value instead
 hide_token_restore: false
+# enable debug logs by default
+debug: false
 ```
 
 <details>
