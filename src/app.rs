@@ -17,11 +17,13 @@ use gtk4::{
     prelude::{BoxExt, ButtonExt, CheckButtonExt, EventControllerExt, FlowBoxChildExt, GtkWindowExt, WidgetExt},
 };
 use gtk4_layer_shell::*;
-use hyprland::{
-    data::{Clients, Monitors},
-    shared::HyprData,
+use hyprland::{data::Monitors, shared::HyprData};
+use hyprland_preview_share_picker_lib::{
+    frame::FrameManager,
+    image::Image,
+    output::OutputManager,
+    toplevel::{Toplevel, ToplevelManager},
 };
-use hyprland_preview_share_picker_lib::{frame::FrameManager, image::Image, output::OutputManager, toplevel::Toplevel};
 use regex::Regex;
 use rsass::{compile_scss, output};
 use wayland_client::Connection;
@@ -221,28 +223,39 @@ fn build_windows_view(con: &Connection, toplevels: &Vec<Toplevel>, config: &Conf
     let manager = match FrameManager::new(con) {
         Ok(manager) => std::sync::Arc::new(manager),
         Err(err) => {
-            log::error!("unable to create new frame manager from connection: {err}");
+            log::warn!("unable to create new frame manager from connection: {err}");
             return scrolled_container;
         }
     };
-    let clients = match Clients::get() {
-        Ok(clients) => Vec::from_iter(clients.into_iter()),
+
+    let wl_toplevels = match ToplevelManager::get_toplevels(&con) {
+        Ok(toplevels) => toplevels,
         Err(err) => {
-            log::error!("unable to get clients form hyprland socket: {err}");
+            log::warn!("unable to get toplevels from hyprland: {err}");
             Vec::new()
         }
     };
+
+    log::debug!("got hyprland toplevels {wl_toplevels:#?}");
+    for toplevel in toplevels {
+        log::debug!("env toplevel {} [{}]: id = {:x}", toplevel.class, toplevel.title, toplevel.id)
+    }
+
     toplevels.iter().for_each(|toplevel| {
         log::debug!("attempting to capture frame for toplevel {}", toplevel.id);
-        // this method is kindof bad since multiple windows could have the same class and title but afaik there is no clean
-        // way to get a hyprland window address for a wayland toplevel id
-        log::debug!("toplevel = {toplevel:?}");
-        let client = match clients.iter().find(|c| c.class.eq(&toplevel.class) && c.title.eq(&toplevel.title)) {
-            Some(client) => client,
-            None => return log::error!("unable to find hyprland client which matches toplevel class and title"),
+        let window_address = match wl_toplevels.iter().find(|tl| tl.toplevel_id().is_some_and(|id| id.eq(&toplevel.id))) {
+            Some(tl) => {
+                if let Some(window_address) = tl.window_address() {
+                    window_address
+                } else {
+                    return log::error!(
+                        "toplevel {} was listed by hyprland but window address could not be extracted from identifier",
+                        toplevel.id
+                    );
+                }
+            }
+            None => return log::error!("hyprland listed no toplevel with id {}, skipping this toplevel!", toplevel.id),
         };
-
-        let handle = u64::from_str_radix(format!("{}", client.address)[2..].as_ref(), 16).expect("should be valid u64");
 
         let resize_size = config.image.resize_size;
         let id = toplevel.id;
@@ -254,7 +267,7 @@ fn build_windows_view(con: &Connection, toplevels: &Vec<Toplevel>, config: &Conf
             manager,
             async move {
                 let mut manager = manager;
-                let buffer = match manager.capture_frame(handle) {
+                let buffer = match manager.capture_frame(window_address) {
                     Ok(buffer) => buffer,
                     Err(err) => return log::error!("unable to capture frame for toplevel {id}: {err}"),
                 };
