@@ -1,5 +1,3 @@
-#![feature(iter_array_chunks)]
-
 pub mod buffer;
 pub mod error;
 pub mod frame;

@@ -146,7 +146,8 @@ impl Image {
         let width = buffer.width();
 
         let raw = buffer.into_vec();
-        let bytes = raw.into_iter().array_chunks::<4>().flat_map(|[b, g, r, _]| [r, g, b]).collect::<Vec<_>>();
+        let bytes =
+            raw.chunks_exact(4).into_iter().flat_map(|chunk| chunk.iter().take(3).rev().copied()).collect::<Vec<u8>>();
         match RgbImage::from_vec(width, height, bytes) {
             Some(img) => Ok(img),
             None => Err(Box::from("failed to convert xrgb image to rgb image")),
