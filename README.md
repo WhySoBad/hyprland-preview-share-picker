@@ -166,12 +166,16 @@ windows:
   min_per_row: 3
   # maximum amount of image cards per row on the windows page
   max_per_row: 999
+  # number of clicks needed to select a window
+  clicks: 2
 
 outputs:
   # minimum amount of image cards per row on the outputs page
   min_per_row: 2
   # maximum amount of image cards per row on the outputs page
   max_per_row: 2
+  # number of clicks needed to select an output
+  clicks: 2
 
 region:
   # command to run for region selection

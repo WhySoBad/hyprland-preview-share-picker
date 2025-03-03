@@ -70,8 +70,8 @@ impl App {
     }
 }
 
-fn build_ui(app: &Application, config: &Config, toplevels: &Vec<Toplevel>, default_restore_token: bool) {
-    let window = build_window(app, &config);
+fn build_ui(app: &Application, config: &Config, toplevels: &[Toplevel], default_restore_token: bool) {
+    let window = build_window(app, config);
     log::debug!("built application window");
     let window_container = Box::new(gtk4::Orientation::Vertical, 0);
     window.set_child(Some(&window_container));
@@ -184,12 +184,9 @@ fn build_window(app: &Application, config: &Config) -> ApplicationWindow {
 
     let event_controller = EventControllerKey::new();
     event_controller.connect_key_pressed(|_, key, _, _| {
-        match key {
-            gtk4::gdk::Key::Escape => {
-                log::debug!("exiting: escape key pressed");
-                exit(0);
-            }
-            _ => (),
+        if let gtk4::gdk::Key::Escape = key {
+            log::debug!("exiting: escape key pressed");
+            exit(0);
         }
         gtk4::glib::Propagation::Proceed
     });
@@ -204,7 +201,7 @@ fn build_window(app: &Application, config: &Config) -> ApplicationWindow {
     window
 }
 
-fn build_windows_view(con: &Connection, toplevels: &Vec<Toplevel>, config: &Config) -> impl IsA<Widget> {
+fn build_windows_view(con: &Connection, toplevels: &[Toplevel], config: &Config) -> impl IsA<Widget> {
     let scrolled_container = ScrolledWindow::builder().css_classes([config.classes.notebook_page.as_str()]).build();
     let container = FlowBox::builder()
         .vexpand(false)
@@ -226,7 +223,7 @@ fn build_windows_view(con: &Connection, toplevels: &Vec<Toplevel>, config: &Conf
         }
     };
     let clients = match Clients::get() {
-        Ok(clients) => Vec::from_iter(clients.into_iter()),
+        Ok(clients) => Vec::from_iter(clients),
         Err(err) => {
             log::error!("unable to get clients form hyprland socket: {err}");
             Vec::new()
@@ -268,7 +265,7 @@ fn build_windows_view(con: &Connection, toplevels: &Vec<Toplevel>, config: &Conf
 
                 img.resize_to_fit(resize_size);
 
-                if let Err(_) = tx.send(img) {
+                if tx.send(img).is_err() {
                     log::error!("unable to transmit image for toplevel {id}: channel is closed");
                 };
                 log::debug!("transmitted image for toplevel {id}");
@@ -284,7 +281,7 @@ fn build_windows_view(con: &Connection, toplevels: &Vec<Toplevel>, config: &Conf
                     Ok(img) => img,
                     Err(err) => {
                         log::error!("unable to receive image for toplevel {id}: {err}");
-                        card.remove_css_class(&card_loading_css.as_str());
+                        card.remove_css_class(card_loading_css.as_str());
                         return;
                     }
                 };
@@ -295,27 +292,28 @@ fn build_windows_view(con: &Connection, toplevels: &Vec<Toplevel>, config: &Conf
                     Err(err) => return log::error!("unable to create pixbuf for toplevel {id} image: {err}"),
                 };
                 image.set_pixbuf(Some(&pixbuf));
-                card.remove_css_class(&card_loading_css.as_str());
+                card.remove_css_class(card_loading_css.as_str());
             }
         ));
 
         let flowbox_child = FlowBoxChild::builder().halign(gtk4::Align::Fill).valign(gtk4::Align::Fill).child(&card).build();
 
         let gesture = GestureClick::new();
+        let clicks = config.windows.clicks;
         gesture.connect_released(move |gesture, n, _, _| {
-            if n != 2 {
+            if n < 0 || (n as u32) < clicks {
                 return;
             }
             if let Some(widget) = gesture.widget() {
                 widget
-                    .activate_action("win.select", Some(&format!("window:{}", id.to_string()).to_variant()))
+                    .activate_action("win.select", Some(&format!("window:{id}").to_variant()))
                     .expect("select action should be registered on the window")
             }
         });
         flowbox_child.add_controller(gesture);
         flowbox_child.connect_activate(move |child| {
             child
-                .activate_action("win.select", Some(&format!("window:{}", id.to_string()).to_variant()))
+                .activate_action("win.select", Some(&format!("window:{id}").to_variant()))
                 .expect("select action should be registered on the window")
         });
 
@@ -349,7 +347,7 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
         }
     };
     let monitors = match Monitors::get() {
-        Ok(monitors) => Vec::from_iter(monitors.into_iter()),
+        Ok(monitors) => Vec::from_iter(monitors),
         Err(err) => {
             log::error!("unable to get monitors form hyprland socket: {err}");
             Vec::new()
@@ -392,7 +390,7 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
                     img = img.transform(monitor.transform.into());
                 }
 
-                if let Err(_) = tx.send(img) {
+                if tx.send(img).is_err() {
                     log::error!("unable to transmit image for name {name}: channel is closed");
                 };
                 log::debug!("transmitted image for output {name}");
@@ -410,7 +408,7 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
                     Ok(img) => img,
                     Err(err) => {
                         log::error!("unable to receive image for output {name}: {err}");
-                        card.remove_css_class(&card_loading_css.as_str());
+                        card.remove_css_class(card_loading_css.as_str());
                         return;
                     }
                 };
@@ -421,18 +419,19 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
                     Err(err) => return log::error!("unable to create pixbuf for output {name} image: {err}"),
                 };
                 image.set_pixbuf(Some(&pixbuf));
-                card.remove_css_class(&card_loading_css.as_str());
+                card.remove_css_class(card_loading_css.as_str());
             }
         ));
 
         let flowbox_child = FlowBoxChild::builder().halign(gtk4::Align::Fill).valign(gtk4::Align::Fill).child(&card).build();
 
         let gesture = GestureClick::new();
+        let clicks = config.outputs.clicks;
         gesture.connect_released(clone!(
             #[strong]
             name,
             move |gesture, n, _, _| {
-                if n != 2 {
+                if n < 0 || (n as u32) < clicks {
                     return;
                 }
                 if let Some(widget) = gesture.widget() {
@@ -490,7 +489,7 @@ fn build_region_view(config: &Config) -> impl IsA<Widget> {
                         Ok(output) => {
                             let region = String::from_utf8_lossy(&output.stdout);
                             let region = region.trim();
-                            if region_regex.is_match(&region) {
+                            if region_regex.is_match(region) {
                                 root.activate_action("win.select", Some(&format!("region:{region}").to_variant()))
                                     .expect("select action should be registered on the window");
                             } else {

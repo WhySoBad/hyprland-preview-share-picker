@@ -57,7 +57,7 @@ impl Config {
     }
 
     pub fn directory(&self) -> &Path {
-        &self.path.parent().unwrap_or(self.path().as_path())
+        self.path.parent().unwrap_or(self.path().as_path())
     }
 
     /// Expand `$HOME` and `~` at beginning of a path to
@@ -221,11 +221,13 @@ pub struct OutputsConfig {
     pub min_per_row: u32,
     /// minimum amount of cards per row
     pub max_per_row: u32,
+    /// number of clicks to trigger selection
+    pub clicks: u32,
 }
 
 impl Default for OutputsConfig {
     fn default() -> Self {
-        Self { min_per_row: 2, max_per_row: 2 }
+        Self { min_per_row: 2, max_per_row: 2, clicks: 2 }
     }
 }
 
@@ -237,11 +239,13 @@ pub struct WindowsConfig {
     pub min_per_row: u32,
     /// minimum amount of cards per row
     pub max_per_row: u32,
+    /// number of clicks to trigger selection
+    pub clicks: u32,
 }
 
 impl Default for WindowsConfig {
     fn default() -> Self {
-        Self { min_per_row: 3, max_per_row: 999 }
+        Self { min_per_row: 3, max_per_row: 999, clicks: 2 }
     }
 }
 
