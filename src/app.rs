@@ -4,17 +4,11 @@ use std::{
     rc::Rc,
 };
 
-use glib::variant::{StaticVariantType, ToVariant};
+use glib::{object::ObjectExt, variant::{StaticVariantType, ToVariant}};
 use gtk4::{
-    Application, ApplicationWindow, Box, Button, CheckButton, CssProvider, EventControllerKey, FlowBox, FlowBoxChild,
-    GestureClick, Label, Notebook, Picture, STYLE_PROVIDER_PRIORITY_APPLICATION, ScrolledWindow, Widget,
-    gdk::Display,
-    gio::{
-        ActionEntry,
-        prelude::{ActionMapExtManual, ApplicationExt, ApplicationExtManual},
-    },
-    glib::{ExitCode, clone, object::IsA},
-    prelude::{BoxExt, ButtonExt, CheckButtonExt, EventControllerExt, FlowBoxChildExt, GtkWindowExt, WidgetExt},
+    ffi::GtkRoot, gdk::Display, gio::{
+        prelude::{ActionMapExtManual, ApplicationExt, ApplicationExtManual}, ActionEntry
+    }, glib::{clone, object::IsA, ExitCode}, prelude::{BoxExt, ButtonExt, CheckButtonExt, EventControllerExt, FixedExt, FlowBoxChildExt, GtkWindowExt, WidgetExt}, Application, ApplicationWindow, Box, Button, CheckButton, CssProvider, EventControllerKey, Fixed, FlowBox, FlowBoxChild, GestureClick, Label, Notebook, Picture, ScrolledWindow, Widget, STYLE_PROVIDER_PRIORITY_APPLICATION
 };
 use gtk4_layer_shell::*;
 use hyprland::{
@@ -22,11 +16,12 @@ use hyprland::{
     shared::HyprData,
 };
 use hyprland_preview_share_picker_lib::{frame::FrameManager, image::Image, output::OutputManager, toplevel::Toplevel};
+use log::info;
 use regex::Regex;
 use rsass::{compile_scss, output};
 use wayland_client::Connection;
 
-use crate::{config::Config, image::ImageExt};
+use crate::{config::Config, image::ImageExt, util::MonitorTransformExt};
 
 const APP_ID: &str = "ch.wysbd.hyprland-preview-screen-picker";
 
@@ -325,16 +320,18 @@ fn build_windows_view(con: &Connection, toplevels: &[Toplevel], config: &Config)
 
 fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
     let scrolled_container = ScrolledWindow::builder().css_classes([config.classes.notebook_page.as_str()]).build();
-    let container = FlowBox::builder()
+    // TODO: Add a FlowBox as an outer container (or maybe inner?) to enable FlowBoxChild behavior or implement
+    //       the behavior myself
+    let container = Fixed::builder()
         .hexpand(false)
         .vexpand(false)
-        .row_spacing(12)
-        .column_spacing(12)
-        .selection_mode(gtk4::SelectionMode::Browse)
-        .orientation(gtk4::Orientation::Horizontal)
-        .homogeneous(true)
-        .min_children_per_line(config.outputs.min_per_row)
-        .max_children_per_line(config.outputs.max_per_row)
+        // .row_spacing(12)
+        // .column_spacing(12)
+        // .selection_mode(gtk4::SelectionMode::Browse)
+        // .orientation(gtk4::Orientation::Horizontal)
+        // .homogeneous(true)
+        // .min_children_per_line(config.outputs.min_per_row)
+        // .max_children_per_line(config.outputs.max_per_row)
         .build();
 
     scrolled_container.set_child(Some(&container));
@@ -346,7 +343,7 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
             return scrolled_container;
         }
     };
-    let monitors = match Monitors::get() {
+    let mut monitors = match Monitors::get() {
         Ok(monitors) => Vec::from_iter(monitors),
         Err(err) => {
             log::error!("unable to get monitors form hyprland socket: {err}");
@@ -355,12 +352,42 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
     };
     let outputs = manager.outputs.clone();
 
+    monitors.iter_mut().for_each(|m| m.apply_transform());
+    let min_x = monitors.iter().min_by_key(|m| m.x).map(|m| m.x as f64).unwrap_or_default();
+    let min_y = monitors.iter().min_by_key(|m| m.y).map(|m| m.y as f64).unwrap_or_default();
+    let max_x = monitors.iter().max_by_key(|m| m.x + m.width as i32).map(|m| (m.x + m.width as i32) as f64).unwrap_or_default();
+    let max_y = monitors.iter().max_by_key(|m| m.y + m.height as i32).map(|m| (m.y + m.height as i32) as f64).unwrap_or_default();
+
+    let monitors_width = max_x - min_x;
+    let monitors_height = max_y - min_y;
+    let aspect_ratio = monitors_width / monitors_height;
+
+    // TODO: Fix hard-coded values (somehow get them dynamically)
+    let container_width = 964.0;
+    let container_height = 428.0;
+    let container_aspect_ratio = container_width / container_height;
+    println!("container coordinate system = 0x0 w={container_width} h={container_height}, aspect ratio = {container_aspect_ratio}");
+    println!("coodinate system = {min_x}x{min_y} w={monitors_width} h={monitors_height}, aspect ratio = {aspect_ratio}");
+
+    let transform_x = |x: f64| (x / monitors_width) * container_width;
+    let transform_y = |y: f64| (y / monitors_height) * container_height;
+
+    let offset_x = -min_x.min(0.0);
+    let offset_y = -min_y.min(0.0);
+
+    println!("offset_x = {offset_x}, offset_y = {offset_y}");
+
     outputs.into_iter().for_each(|(wl_output, output)| {
         let name = match output.name {
             Some(name) => name,
             None => return log::error!("output {output:?} does not have a name"),
         };
+
         let monitor = monitors.iter().find(|m| m.name.eq(&name)).cloned();
+        let (x, y, width, height) = monitor.as_ref()
+            .map(|m| (m.x as f64, m.y as f64, m.width as f64, m.height as f64))
+            .unwrap_or_default();
+        // println!("{monitor:#?}");
 
         let resize_size = config.image.resize_size;
         let (card, image) = build_image_with_label(name.as_str(), config);
@@ -403,6 +430,8 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
             name,
             #[strong]
             card,
+            #[strong]
+            container,
             async move {
                 let img = match rx.await {
                     Ok(img) => img,
@@ -420,10 +449,17 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
                 };
                 image.set_pixbuf(Some(&pixbuf));
                 card.remove_css_class(card_loading_css.as_str());
+                println!("allocation = {:?}", container.allocation())
             }
         ));
 
-        let flowbox_child = FlowBoxChild::builder().halign(gtk4::Align::Fill).valign(gtk4::Align::Fill).child(&card).build();
+        let flowbox_child = FlowBoxChild::builder()
+            .width_request(transform_x(width) as i32)
+            // TODO: At the moment the widget size is the transformed monitor size, however the widget
+            //       also includes a label which causes some ugly (variable) padding on the x-axis
+            .height_request(transform_y(height) as i32)
+            .child(&card)
+            .build();
 
         let gesture = GestureClick::new();
         let clicks = config.outputs.clicks;
@@ -448,7 +484,7 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
                 .expect("select action should be registered on the window")
         });
 
-        container.insert(&flowbox_child, 0);
+        container.put(&flowbox_child, transform_x(offset_x + x), transform_y(offset_y + y));
     });
 
     scrolled_container
@@ -533,8 +569,13 @@ fn build_image_with_label(label_text: &str, config: &Config) -> (impl IsA<Widget
         .orientation(gtk4::Orientation::Vertical)
         .vexpand(false)
         .hexpand(false)
-        .halign(gtk4::Align::Fill)
-        .valign(gtk4::Align::Fill)
+        .halign(gtk4::Align::Center)
+        .valign(gtk4::Align::Center)
+        // TODO: Make this margin configurable
+        .margin_end(5)
+        .margin_start(5)
+        .margin_top(5)
+        .margin_bottom(5)
         .css_classes([config.classes.image_card.as_str(), config.classes.image_card_loading.as_str()])
         .build();
 
