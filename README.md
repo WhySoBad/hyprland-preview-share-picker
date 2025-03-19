@@ -170,12 +170,12 @@ windows:
   clicks: 2
 
 outputs:
-  # minimum amount of image cards per row on the outputs page
-  min_per_row: 2
-  # maximum amount of image cards per row on the outputs page
-  max_per_row: 2
   # number of clicks needed to select an output
   clicks: 2
+  # spacing in pixels between the outputs in the layout
+  spacing: 6
+  # show the label with the output name
+  show_label: true
 
 region:
   # command to run for region selection

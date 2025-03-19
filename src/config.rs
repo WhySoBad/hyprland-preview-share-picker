@@ -219,13 +219,17 @@ impl Default for RegionConfig {
 pub struct OutputsConfig {
     /// number of clicks to trigger selection
     pub clicks: u32,
-    /// gap in pixels between the outputs in the layout
-    pub gap: u32,
+    /// spacing in pixels between the outputs in the layout
+    ///
+    /// **note**: the spacing is applied as margin to all directions of an output card
+    pub spacing: u32,
+    /// show the output name label
+    pub show_label: bool,
 }
 
 impl Default for OutputsConfig {
     fn default() -> Self {
-        Self { gap: 5, clicks: 2 }
+        Self { spacing: 6, clicks: 2, show_label: true }
     }
 }
 

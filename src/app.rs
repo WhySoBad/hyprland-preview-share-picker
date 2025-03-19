@@ -4,11 +4,24 @@ use std::{
     rc::Rc,
 };
 
-use glib::{object::ObjectExt, variant::{StaticVariantType, ToVariant}};
+use glib::{
+    object::ObjectExt,
+    variant::{StaticVariantType, ToVariant},
+};
 use gtk4::{
-    ffi::GtkRoot, gdk::Display, gio::{
-        prelude::{ActionMapExtManual, ApplicationExt, ApplicationExtManual}, ActionEntry
-    }, glib::{clone, object::IsA, ExitCode}, prelude::{BoxExt, ButtonExt, CheckButtonExt, EventControllerExt, FixedExt, FlowBoxChildExt, GtkWindowExt, WidgetExt, WidgetExtManual}, Application, ApplicationWindow, Box, Button, CheckButton, CssProvider, EventControllerKey, Fixed, FlowBox, FlowBoxChild, GestureClick, Label, Notebook, Picture, ScrolledWindow, Widget, STYLE_PROVIDER_PRIORITY_APPLICATION
+    Application, ApplicationWindow, Box, Button, CheckButton, CssProvider, EventControllerKey, Fixed, FlowBox, FlowBoxChild,
+    GestureClick, Label, Notebook, Picture, STYLE_PROVIDER_PRIORITY_APPLICATION, ScrolledWindow, Widget,
+    ffi::GtkRoot,
+    gdk::Display,
+    gio::{
+        ActionEntry,
+        prelude::{ActionMapExtManual, ApplicationExt, ApplicationExtManual},
+    },
+    glib::{ExitCode, clone, object::IsA},
+    prelude::{
+        BoxExt, ButtonExt, CheckButtonExt, EventControllerExt, FixedExt, FlowBoxChildExt, GtkWindowExt, WidgetExt,
+        WidgetExtManual,
+    },
 };
 use gtk4_layer_shell::*;
 use hyprland::{
@@ -238,7 +251,7 @@ fn build_windows_view(con: &Connection, toplevels: &[Toplevel], config: &Config)
 
         let resize_size = config.image.resize_size;
         let id = toplevel.id;
-        let (card, image) = build_image_with_label(toplevel.title.as_str(), config);
+        let (card, image) = build_window_image_with_label(toplevel.title.as_str(), config);
         let (tx, rx) = tokio::sync::oneshot::channel();
 
         tokio::spawn(clone!(
@@ -320,20 +333,7 @@ fn build_windows_view(con: &Connection, toplevels: &[Toplevel], config: &Config)
 
 fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
     let scrolled_container = ScrolledWindow::builder().css_classes([config.classes.notebook_page.as_str()]).build();
-    // TODO: Add a FlowBox as an outer container (or maybe inner?) to enable FlowBoxChild behavior or implement
-    //       the behavior myself
-    let container = Fixed::builder()
-        .hexpand(false)
-        .vexpand(false)
-        // .row_spacing(12)
-        // .column_spacing(12)
-        // .selection_mode(gtk4::SelectionMode::Browse)
-        // .orientation(gtk4::Orientation::Horizontal)
-        // .homogeneous(true)
-        // .min_children_per_line(config.outputs.min_per_row)
-        // .max_children_per_line(config.outputs.max_per_row)
-        .build();
-
+    let container = Fixed::builder().hexpand(false).vexpand(false).build();
     scrolled_container.set_child(Some(&container));
 
     let manager = match OutputManager::new(con) {
@@ -355,11 +355,14 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
     monitors.iter_mut().for_each(|m| m.apply_transform());
     let min_x = monitors.iter().min_by_key(|m| m.x).map(|m| m.x as f64).unwrap_or_default();
     let min_y = monitors.iter().min_by_key(|m| m.y).map(|m| m.y as f64).unwrap_or_default();
-    let max_x = monitors.iter().max_by_key(|m| m.x + m.width as i32).map(|m| (m.x + m.width as i32) as f64).unwrap_or_default();
-    let max_y = monitors.iter().max_by_key(|m| m.y + m.height as i32).map(|m| (m.y + m.height as i32) as f64).unwrap_or_default();
+    let max_x =
+        monitors.iter().max_by_key(|m| m.x + m.width as i32).map(|m| (m.x + m.width as i32) as f64).unwrap_or_default();
+    let max_y =
+        monitors.iter().max_by_key(|m| m.y + m.height as i32).map(|m| (m.y + m.height as i32) as f64).unwrap_or_default();
 
     let monitors_width = max_x - min_x;
     let monitors_height = max_y - min_y;
+    let monitors_aspect_ratio = monitors_width / monitors_height;
     let offset_x = -min_x.min(0.0);
     let offset_y = -min_y.min(0.0);
 
@@ -370,13 +373,11 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
         };
 
         let monitor = monitors.iter().find(|m| m.name.eq(&name)).cloned();
-        let (x, y, width, height) = monitor.as_ref()
-            .map(|m| (m.x as f64, m.y as f64, m.width as f64, m.height as f64))
-            .unwrap_or_default();
-        // println!("{monitor:#?}");
+        let (x, y, width, height) =
+            monitor.as_ref().map(|m| (m.x as f64, m.y as f64, m.width as f64, m.height as f64)).unwrap_or_default();
 
         let resize_size = config.image.resize_size;
-        let (card, image) = build_image_with_label(name.as_str(), config);
+        let (card, image) = build_output_image_with_label(name.as_str(), config);
         let (tx, rx) = tokio::sync::oneshot::channel();
 
         tokio::spawn(clone!(
@@ -436,15 +437,10 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
             }
         ));
 
-        let flowbox_child = Button::builder()
-            // .width_request(transform_x(width) as i32)
-            // TODO: At the moment the widget size is the transformed monitor size, however the widget
-            //       also includes a label which causes some ugly (variable) padding on the x-axis
-            // .height_request(transform_y(height) as i32)
-            .child(&card)
-            .build();
+        let button = Button::builder().focusable(true).child(&card).build();
 
         let gesture = GestureClick::new();
+        gesture.set_propagation_phase(gtk4::PropagationPhase::Capture);
         let clicks = config.outputs.clicks;
         gesture.connect_released(clone!(
             #[strong]
@@ -460,44 +456,65 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
                 }
             }
         ));
-        flowbox_child.add_controller(gesture);
-        flowbox_child.connect_activate(move |child| {
+        button.add_controller(gesture);
+        button.connect_activate(move |child| {
             child
                 .activate_action("win.select", Some(&format!("screen:{name}").to_variant()))
                 .expect("select action should be registered on the window")
         });
 
-        container.add_tick_callback(clone!(#[strong] flowbox_child, #[strong] container, move |widget, _| {
-            let allocation = widget.allocation();
-            // listen to ticks until we have an allocation
-            if allocation.width() == 0 || allocation.height() == 0 {
-                glib::ControlFlow::Continue
-            } else {
-                let transform_x = |x: f64| (x / monitors_width) * allocation.width() as f64;
-                let transform_y = |y: f64| (y / monitors_height) * allocation.height() as f64;
+        container.add_tick_callback(clone!(
+            #[strong]
+            button,
+            move |widget, _| {
+                let allocation = widget.allocation();
+                // listen to ticks until we have an allocation
+                if allocation.width() == 0 || allocation.height() == 0 {
+                    glib::ControlFlow::Continue
+                } else {
+                    let aspect_ratio = allocation.width() as f64 / allocation.height() as f64;
+                    let transform_x = |x: f64| {
+                        if monitors_aspect_ratio > aspect_ratio {
+                            (x / monitors_width) * allocation.width() as f64
+                        } else {
+                            (x / monitors_width) * allocation.height() as f64 * monitors_aspect_ratio
+                        }
+                    };
+                    let transform_y = |y: f64| {
+                        if monitors_aspect_ratio > aspect_ratio {
+                            (y / monitors_height) * allocation.width() as f64 / monitors_aspect_ratio
+                        } else {
+                            (y / monitors_height) * allocation.height() as f64
+                        }
+                    };
 
-                flowbox_child.set_width_request(transform_x(width) as i32);
-                flowbox_child.set_height_request(transform_y(height) as i32);
+                    log::debug!("height = {height}, monitors_height = {monitors_height}");
 
-                println!("width_request = {}, height_request = {}", transform_x(width), transform_y(height));
+                    button.set_width_request(transform_x(width) as i32);
+                    button.set_height_request(transform_y(height) as i32);
 
-                let transformed_monitor_width = transform_x(monitors_width);
-                let transformed_monitor_height = transform_x(monitors_height);
+                    log::debug!("width_request = {}, height_request = {}", transform_x(width), transform_y(height));
 
-                let px_offset_x = (allocation.width() as f64 - transformed_monitor_width).max(0.0) / 2.0;
-                let px_offset_y = (allocation.height() as f64 - transformed_monitor_height).max(0.0) / 2.0;
+                    let transformed_monitor_width = transform_x(monitors_width);
+                    let transformed_monitor_height = transform_x(monitors_height);
 
-                println!("px_offset_x = {px_offset_x}, px_offset_y = {px_offset_y}");
+                    let px_offset_x = (allocation.width() as f64 - transformed_monitor_width).max(0.0) / 2.0;
+                    let px_offset_y = (allocation.height() as f64 - transformed_monitor_height).max(0.0) / 2.0;
 
-                println!("allocation = {allocation:?}");
-                println!("transform_x = {}, transform_y = {}, x = {}, y = {}", transform_x(width), transform_y(height), transform_x(offset_x + x), transform_y(offset_y + y));
+                    log::debug!("px_offset_x = {px_offset_x}, px_offset_y = {px_offset_y}");
+                    log::debug!(
+                        "transform_x = {}, transform_y = {}, x = {}, y = {}",
+                        transform_x(width),
+                        transform_y(height),
+                        transform_x(offset_x + x),
+                        transform_y(offset_y + y)
+                    );
 
-                container.put(&flowbox_child, px_offset_x + transform_x(offset_x + x), px_offset_y + transform_y(offset_y + y));
-                glib::ControlFlow::Break
+                    widget.put(&button, px_offset_x + transform_x(offset_x + x), px_offset_y + transform_y(offset_y + y));
+                    glib::ControlFlow::Break
+                }
             }
-        }));
-
-        // container.put(&flowbox_child, transform_x(offset_x + x), transform_y(offset_y + y));
+        ));
     });
 
     scrolled_container
@@ -577,18 +594,13 @@ fn build_restore_checkbox(restore_token: Rc<RefCell<bool>>, config: &Config) -> 
     button
 }
 
-fn build_image_with_label(label_text: &str, config: &Config) -> (impl IsA<Widget>, Picture) {
+fn build_window_image_with_label(label_text: &str, config: &Config) -> (impl IsA<Widget>, Picture) {
     let container = Box::builder()
         .orientation(gtk4::Orientation::Vertical)
         .vexpand(false)
         .hexpand(false)
         .halign(gtk4::Align::Center)
         .valign(gtk4::Align::Start)
-        // TODO: Make the gap being a real gap (meaning that on the border elements there won't be margin applied)
-        .margin_end(config.outputs.gap as i32)
-        .margin_start(config.outputs.gap as i32)
-        .margin_top(config.outputs.gap as i32)
-        .margin_bottom(config.outputs.gap as i32)
         .css_classes([config.classes.image_card.as_str(), config.classes.image_card_loading.as_str()])
         .build();
 
@@ -600,6 +612,8 @@ fn build_image_with_label(label_text: &str, config: &Config) -> (impl IsA<Widget
         .css_classes([config.classes.image.as_str()])
         .build();
 
+    container.append(&image);
+
     let label = Label::builder()
         .max_width_chars(1)
         .label(label_text)
@@ -609,8 +623,47 @@ fn build_image_with_label(label_text: &str, config: &Config) -> (impl IsA<Widget
         .hexpand(false)
         .build();
 
-    container.append(&image);
     container.append(&label);
+
+    (container, image)
+}
+
+fn build_output_image_with_label(label_text: &str, config: &Config) -> (impl IsA<Widget>, Picture) {
+    let container = Box::builder()
+        .orientation(gtk4::Orientation::Vertical)
+        .vexpand(false)
+        .hexpand(false)
+        .halign(gtk4::Align::Fill)
+        .valign(gtk4::Align::Fill)
+        .margin_end(config.outputs.spacing as i32)
+        .margin_start(config.outputs.spacing as i32)
+        .margin_top(config.outputs.spacing as i32)
+        .margin_bottom(config.outputs.spacing as i32)
+        .css_classes([config.classes.image_card.as_str(), config.classes.image_card_loading.as_str()])
+        .build();
+
+    let image = Picture::builder()
+        .vexpand(true)
+        .valign(gtk4::Align::Fill)
+        .halign(gtk4::Align::Fill)
+        .content_fit(gtk4::ContentFit::Fill)
+        .css_classes([config.classes.image.as_str()])
+        .build();
+
+    container.append(&image);
+
+    if config.outputs.show_label {
+        let label = Label::builder()
+            .max_width_chars(1)
+            .label(label_text)
+            .ellipsize(gtk4::pango::EllipsizeMode::End)
+            .single_line_mode(true)
+            .css_classes([config.classes.image_label.as_str()])
+            .hexpand(false)
+            .build();
+
+        container.append(&label);
+    }
 
     (container, image)
 }
