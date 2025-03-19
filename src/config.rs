@@ -217,17 +217,15 @@ impl Default for RegionConfig {
 #[schemars(rename = "Outputs config")]
 #[serde(default)]
 pub struct OutputsConfig {
-    /// minimum amount of cards per row
-    pub min_per_row: u32,
-    /// minimum amount of cards per row
-    pub max_per_row: u32,
     /// number of clicks to trigger selection
     pub clicks: u32,
+    /// gap in pixels between the outputs in the layout
+    pub gap: u32,
 }
 
 impl Default for OutputsConfig {
     fn default() -> Self {
-        Self { min_per_row: 2, max_per_row: 2, clicks: 2 }
+        Self { gap: 5, clicks: 2 }
     }
 }
 

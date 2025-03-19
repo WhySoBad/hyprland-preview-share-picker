@@ -8,7 +8,7 @@ use glib::{object::ObjectExt, variant::{StaticVariantType, ToVariant}};
 use gtk4::{
     ffi::GtkRoot, gdk::Display, gio::{
         prelude::{ActionMapExtManual, ApplicationExt, ApplicationExtManual}, ActionEntry
-    }, glib::{clone, object::IsA, ExitCode}, prelude::{BoxExt, ButtonExt, CheckButtonExt, EventControllerExt, FixedExt, FlowBoxChildExt, GtkWindowExt, WidgetExt}, Application, ApplicationWindow, Box, Button, CheckButton, CssProvider, EventControllerKey, Fixed, FlowBox, FlowBoxChild, GestureClick, Label, Notebook, Picture, ScrolledWindow, Widget, STYLE_PROVIDER_PRIORITY_APPLICATION
+    }, glib::{clone, object::IsA, ExitCode}, prelude::{BoxExt, ButtonExt, CheckButtonExt, EventControllerExt, FixedExt, FlowBoxChildExt, GtkWindowExt, WidgetExt, WidgetExtManual}, Application, ApplicationWindow, Box, Button, CheckButton, CssProvider, EventControllerKey, Fixed, FlowBox, FlowBoxChild, GestureClick, Label, Notebook, Picture, ScrolledWindow, Widget, STYLE_PROVIDER_PRIORITY_APPLICATION
 };
 use gtk4_layer_shell::*;
 use hyprland::{
@@ -360,22 +360,8 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
 
     let monitors_width = max_x - min_x;
     let monitors_height = max_y - min_y;
-    let aspect_ratio = monitors_width / monitors_height;
-
-    // TODO: Fix hard-coded values (somehow get them dynamically)
-    let container_width = 964.0;
-    let container_height = 428.0;
-    let container_aspect_ratio = container_width / container_height;
-    println!("container coordinate system = 0x0 w={container_width} h={container_height}, aspect ratio = {container_aspect_ratio}");
-    println!("coodinate system = {min_x}x{min_y} w={monitors_width} h={monitors_height}, aspect ratio = {aspect_ratio}");
-
-    let transform_x = |x: f64| (x / monitors_width) * container_width;
-    let transform_y = |y: f64| (y / monitors_height) * container_height;
-
     let offset_x = -min_x.min(0.0);
     let offset_y = -min_y.min(0.0);
-
-    println!("offset_x = {offset_x}, offset_y = {offset_y}");
 
     outputs.into_iter().for_each(|(wl_output, output)| {
         let name = match output.name {
@@ -430,8 +416,6 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
             name,
             #[strong]
             card,
-            #[strong]
-            container,
             async move {
                 let img = match rx.await {
                     Ok(img) => img,
@@ -449,15 +433,14 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
                 };
                 image.set_pixbuf(Some(&pixbuf));
                 card.remove_css_class(card_loading_css.as_str());
-                println!("allocation = {:?}", container.allocation())
             }
         ));
 
-        let flowbox_child = FlowBoxChild::builder()
-            .width_request(transform_x(width) as i32)
+        let flowbox_child = Button::builder()
+            // .width_request(transform_x(width) as i32)
             // TODO: At the moment the widget size is the transformed monitor size, however the widget
             //       also includes a label which causes some ugly (variable) padding on the x-axis
-            .height_request(transform_y(height) as i32)
+            // .height_request(transform_y(height) as i32)
             .child(&card)
             .build();
 
@@ -484,7 +467,37 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
                 .expect("select action should be registered on the window")
         });
 
-        container.put(&flowbox_child, transform_x(offset_x + x), transform_y(offset_y + y));
+        container.add_tick_callback(clone!(#[strong] flowbox_child, #[strong] container, move |widget, _| {
+            let allocation = widget.allocation();
+            // listen to ticks until we have an allocation
+            if allocation.width() == 0 || allocation.height() == 0 {
+                glib::ControlFlow::Continue
+            } else {
+                let transform_x = |x: f64| (x / monitors_width) * allocation.width() as f64;
+                let transform_y = |y: f64| (y / monitors_height) * allocation.height() as f64;
+
+                flowbox_child.set_width_request(transform_x(width) as i32);
+                flowbox_child.set_height_request(transform_y(height) as i32);
+
+                println!("width_request = {}, height_request = {}", transform_x(width), transform_y(height));
+
+                let transformed_monitor_width = transform_x(monitors_width);
+                let transformed_monitor_height = transform_x(monitors_height);
+
+                let px_offset_x = (allocation.width() as f64 - transformed_monitor_width).max(0.0) / 2.0;
+                let px_offset_y = (allocation.height() as f64 - transformed_monitor_height).max(0.0) / 2.0;
+
+                println!("px_offset_x = {px_offset_x}, px_offset_y = {px_offset_y}");
+
+                println!("allocation = {allocation:?}");
+                println!("transform_x = {}, transform_y = {}, x = {}, y = {}", transform_x(width), transform_y(height), transform_x(offset_x + x), transform_y(offset_y + y));
+
+                container.put(&flowbox_child, px_offset_x + transform_x(offset_x + x), px_offset_y + transform_y(offset_y + y));
+                glib::ControlFlow::Break
+            }
+        }));
+
+        // container.put(&flowbox_child, transform_x(offset_x + x), transform_y(offset_y + y));
     });
 
     scrolled_container
@@ -570,19 +583,19 @@ fn build_image_with_label(label_text: &str, config: &Config) -> (impl IsA<Widget
         .vexpand(false)
         .hexpand(false)
         .halign(gtk4::Align::Center)
-        .valign(gtk4::Align::Center)
-        // TODO: Make this margin configurable
-        .margin_end(5)
-        .margin_start(5)
-        .margin_top(5)
-        .margin_bottom(5)
+        .valign(gtk4::Align::Start)
+        // TODO: Make the gap being a real gap (meaning that on the border elements there won't be margin applied)
+        .margin_end(config.outputs.gap as i32)
+        .margin_start(config.outputs.gap as i32)
+        .margin_top(config.outputs.gap as i32)
+        .margin_bottom(config.outputs.gap as i32)
         .css_classes([config.classes.image_card.as_str(), config.classes.image_card_loading.as_str()])
         .build();
 
     let image = Picture::builder()
         .vexpand(true)
         .valign(gtk4::Align::Center)
-        .height_request(config.image.widget_size)
+        // .height_request(config.image.widget_size)
         .content_fit(gtk4::ContentFit::Contain)
         .css_classes([config.classes.image.as_str()])
         .build();
