@@ -176,6 +176,8 @@ outputs:
   spacing: 6
   # show the label with the output name
   show_label: true
+  # size the output cards respectively to their scaling
+  respect_output_scaling: true
 
 region:
   # command to run for region selection

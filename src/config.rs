@@ -225,11 +225,15 @@ pub struct OutputsConfig {
     pub spacing: u32,
     /// show the output name label
     pub show_label: bool,
+    /// size the output cards respectively to their scaling
+    ///
+    /// **note**: when having too weird of a layout this should probably be disabled
+    pub respect_output_scaling: bool
 }
 
 impl Default for OutputsConfig {
     fn default() -> Self {
-        Self { spacing: 6, clicks: 2, show_label: true }
+        Self { spacing: 6, clicks: 2, show_label: true, respect_output_scaling: true }
     }
 }
 

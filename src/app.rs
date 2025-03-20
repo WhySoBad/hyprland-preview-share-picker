@@ -4,14 +4,10 @@ use std::{
     rc::Rc,
 };
 
-use glib::{
-    object::ObjectExt,
-    variant::{StaticVariantType, ToVariant},
-};
+use glib::variant::{StaticVariantType, ToVariant};
 use gtk4::{
     Application, ApplicationWindow, Box, Button, CheckButton, CssProvider, EventControllerKey, Fixed, FlowBox, FlowBoxChild,
     GestureClick, Label, Notebook, Picture, STYLE_PROVIDER_PRIORITY_APPLICATION, ScrolledWindow, Widget,
-    ffi::GtkRoot,
     gdk::Display,
     gio::{
         ActionEntry,
@@ -29,7 +25,6 @@ use hyprland::{
     shared::HyprData,
 };
 use hyprland_preview_share_picker_lib::{frame::FrameManager, image::Image, output::OutputManager, toplevel::Toplevel};
-use log::info;
 use regex::Regex;
 use rsass::{compile_scss, output};
 use wayland_client::Connection;
@@ -353,6 +348,36 @@ fn build_outputs_view(con: &Connection, config: &Config) -> impl IsA<Widget> {
     let outputs = manager.outputs.clone();
 
     monitors.iter_mut().for_each(|m| m.apply_transform());
+    if config.outputs.respect_output_scaling {
+        monitors.sort_by(|a, b| a.x.cmp(&b.x));
+        let mut translation = 0i32;
+        monitors.iter_mut().for_each(|m| {
+            m.x += translation;
+            if m.scale != 1.0 {
+                let new_width = (m.width as f32 / m.scale) as u16;
+                if new_width > m.width {
+                    translation += (new_width - m.width) as i32;
+                } else {
+                    translation -= (m.width - new_width) as i32;
+                }
+                m.width = new_width;
+            }
+        });
+        monitors.sort_by(|a, b| a.y.cmp(&b.y));
+        translation = 0;
+        monitors.iter_mut().for_each(|m| {
+            m.y += translation;
+            if m.scale != 1.0 {
+                let new_height = (m.height as f32 / m.scale) as u16;
+                if new_height > m.height {
+                    translation += (new_height - m.height) as i32;
+                } else {
+                    translation -= (m.height - new_height) as i32;
+                }
+                m.height = new_height;
+            }
+        });
+    }
     let min_x = monitors.iter().min_by_key(|m| m.x).map(|m| m.x as f64).unwrap_or_default();
     let min_y = monitors.iter().min_by_key(|m| m.y).map(|m| m.y as f64).unwrap_or_default();
     let max_x =
