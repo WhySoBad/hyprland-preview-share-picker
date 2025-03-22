@@ -218,17 +218,20 @@ impl<'a> OutputCard<'a> {
             container.set_margin_bottom(self.config.outputs.spacing as i32);
         }
 
-        let label = Label::builder()
-            .max_width_chars(1)
-            .label(&self.monitor.name)
-            .ellipsize(gtk4::pango::EllipsizeMode::End)
-            .single_line_mode(true)
-            .css_classes([self.config.classes.image_label.as_str()])
-            .hexpand(false)
-            .build();
+        if self.config.outputs.show_label {
+            let label = Label::builder()
+                .max_width_chars(1)
+                .label(&self.monitor.name)
+                .ellipsize(gtk4::pango::EllipsizeMode::End)
+                .single_line_mode(true)
+                .css_classes([self.config.classes.image_label.as_str()])
+                .hexpand(false)
+                .build();
+
+            container.append(&label);
+        }
 
         container.append(picture);
-        container.append(&label);
         container
     }
 
