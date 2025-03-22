@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use glib::{clone, variant::ToVariant};
 use gtk4::{
@@ -62,39 +62,60 @@ impl<'a> OutputsView<'a> {
         let mut view = Self { config, manager, monitors, area };
         if config.outputs.respect_output_scaling {
             view.apply_output_scaling();
+            view.area = MonitorArea::from(&view.monitors)
         }
         Ok(view)
     }
 
     fn apply_output_scaling(&mut self) {
-        // FIXME: The current solution does not work well for vertically stacked monitors
+        // very ugly code to do some very ugly things
+        let mut translations = HashMap::new();
+        self.monitors.iter().for_each(|m| { translations.insert(m.id, 0); });
+
         self.monitors.sort_by(|a, b| a.x.cmp(&b.x));
-        let mut translation = 0i32;
+        let copy = self.monitors.clone();
         self.monitors.iter_mut().for_each(|m| {
-            m.x += translation;
+            translations.insert(m.id, 0);
             if m.scale != 1.0 {
                 let new_width = (m.width as f32 / m.scale) as u16;
-                if new_width > m.width {
-                    translation += (new_width - m.width) as i32;
+                let translation = if new_width > m.width {
+                    (new_width - m.width) as i32
                 } else {
-                    translation -= (m.width - new_width) as i32;
-                }
+                    -((m.width - new_width) as i32)
+                };
+                copy.iter().filter(|o| o.x > m.x + m.width as i32 && (o.y <= m.y + m.height as i32 && o.y + o.height as i32 >= m.y)).for_each(|o| {
+                    if let Some(entry) = translations.get_mut(&o.id) {
+                        *entry += translation;
+                    }
+                });
                 m.width = new_width;
             }
         });
+        translations.iter_mut().for_each(|(key, value)| {
+            let _ = self.monitors.iter_mut().find(|m| m.id == *key).map(|m| m.x += *value);
+            *value = 0;
+        });
+
         self.monitors.sort_by(|a, b| a.y.cmp(&b.y));
-        translation = 0;
+        let copy = self.monitors.clone();
         self.monitors.iter_mut().for_each(|m| {
-            m.y += translation;
             if m.scale != 1.0 {
                 let new_height = (m.height as f32 / m.scale) as u16;
-                if new_height > m.height {
-                    translation += (new_height - m.height) as i32;
+                let translation = if new_height > m.height {
+                    (new_height - m.height) as i32
                 } else {
-                    translation -= (m.height - new_height) as i32;
-                }
+                    -((m.height - new_height) as i32)
+                };
+                copy.iter().filter(|o| o.y > m.y + m.height as i32 && (o.x <= m.x + m.width as i32 && o.x + o.width as i32 >= m.x)).for_each(|o| {
+                    if let Some(entry) = translations.get_mut(&o.id) {
+                        *entry += translation;
+                    }
+                });
                 m.height = new_height;
             }
+        });
+        translations.iter().for_each(|(key, value)| {
+            let _ = self.monitors.iter_mut().find(|m| m.id == *key).map(|m| m.y += *value);
         });
     }
 }
