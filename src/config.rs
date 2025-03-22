@@ -233,7 +233,7 @@ pub struct OutputsConfig {
 
 impl Default for OutputsConfig {
     fn default() -> Self {
-        Self { spacing: 6, clicks: 2, show_label: true, respect_output_scaling: true }
+        Self { spacing: 6, clicks: 2, show_label: false, respect_output_scaling: true }
     }
 }
 
