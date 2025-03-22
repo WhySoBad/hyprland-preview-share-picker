@@ -11,6 +11,8 @@ mod app;
 mod cli;
 mod config;
 mod image;
+mod util;
+mod views;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

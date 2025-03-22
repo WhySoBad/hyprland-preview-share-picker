@@ -217,17 +217,23 @@ impl Default for RegionConfig {
 #[schemars(rename = "Outputs config")]
 #[serde(default)]
 pub struct OutputsConfig {
-    /// minimum amount of cards per row
-    pub min_per_row: u32,
-    /// minimum amount of cards per row
-    pub max_per_row: u32,
     /// number of clicks to trigger selection
     pub clicks: u32,
+    /// spacing in pixels between the outputs in the layout
+    ///
+    /// **note**: the spacing is applied to both sides (the effective gap is `spacing * 2`)
+    pub spacing: u32,
+    /// show the output name label
+    pub show_label: bool,
+    /// size the output cards respectively to their scaling
+    ///
+    /// **note**: when having too weird of a layout this should probably be disabled
+    pub respect_output_scaling: bool,
 }
 
 impl Default for OutputsConfig {
     fn default() -> Self {
-        Self { min_per_row: 2, max_per_row: 2, clicks: 2 }
+        Self { spacing: 6, clicks: 2, show_label: false, respect_output_scaling: true }
     }
 }
 
@@ -241,11 +247,13 @@ pub struct WindowsConfig {
     pub max_per_row: u32,
     /// number of clicks to trigger selection
     pub clicks: u32,
+    /// spacing in pixels between the window cards
+    pub spacing: u32,
 }
 
 impl Default for WindowsConfig {
     fn default() -> Self {
-        Self { min_per_row: 3, max_per_row: 999, clicks: 2 }
+        Self { min_per_row: 3, max_per_row: 999, clicks: 2, spacing: 12 }
     }
 }
 

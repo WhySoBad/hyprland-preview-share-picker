@@ -168,14 +168,19 @@ windows:
   max_per_row: 999
   # number of clicks needed to select a window
   clicks: 2
+  # spacing in pixels between the window cards
+  spacing: 12
 
 outputs:
-  # minimum amount of image cards per row on the outputs page
-  min_per_row: 2
-  # maximum amount of image cards per row on the outputs page
-  max_per_row: 2
   # number of clicks needed to select an output
   clicks: 2
+  # spacing in pixels between the outputs in the layout
+  # note: the spacing is applied from both sides (the gap is `spacing * 2`)
+  spacing: 6
+  # show the label with the output name
+  show_label: true
+  # size the output cards respectively to their scaling
+  respect_output_scaling: true
 
 region:
   # command to run for region selection
