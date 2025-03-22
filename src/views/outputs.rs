@@ -18,6 +18,10 @@ use crate::{config::Config, image::ImageExt, util::MonitorTransformExt};
 use super::View;
 
 struct MonitorArea {
+    min_x: i32,
+    max_x: i32,
+    min_y: i32,
+    max_y: i32,
     aspect_ratio: f64,
     width: i32,
     height: i32,
@@ -36,7 +40,7 @@ impl From<&Vec<Monitor>> for MonitorArea {
         let height = max_y - min_y;
         let offset_x = -min_x.min(0);
         let offset_y = -min_y.min(0);
-        Self { width, height, aspect_ratio: width as f64 / height as f64, offset_x, offset_y }
+        Self { min_x, max_x, min_y, max_y, width, height, aspect_ratio: width as f64 / height as f64, offset_x, offset_y }
     }
 }
 
@@ -70,7 +74,9 @@ impl<'a> OutputsView<'a> {
     fn apply_output_scaling(&mut self) {
         // very ugly code to do some very ugly things
         let mut translations = HashMap::new();
-        self.monitors.iter().for_each(|m| { translations.insert(m.id, 0); });
+        self.monitors.iter().for_each(|m| {
+            translations.insert(m.id, 0);
+        });
 
         self.monitors.sort_by(|a, b| a.x.cmp(&b.x));
         let copy = self.monitors.clone();
@@ -78,16 +84,15 @@ impl<'a> OutputsView<'a> {
             translations.insert(m.id, 0);
             if m.scale != 1.0 {
                 let new_width = (m.width as f32 / m.scale) as u16;
-                let translation = if new_width > m.width {
-                    (new_width - m.width) as i32
-                } else {
-                    -((m.width - new_width) as i32)
-                };
-                copy.iter().filter(|o| o.x > m.x + m.width as i32 && (o.y <= m.y + m.height as i32 && o.y + o.height as i32 >= m.y)).for_each(|o| {
-                    if let Some(entry) = translations.get_mut(&o.id) {
-                        *entry += translation;
-                    }
-                });
+                let translation =
+                    if new_width > m.width { (new_width - m.width) as i32 } else { -((m.width - new_width) as i32) };
+                copy.iter()
+                    .filter(|o| o.x > m.x + m.width as i32 && (o.y <= m.y + m.height as i32 && o.y + o.height as i32 >= m.y))
+                    .for_each(|o| {
+                        if let Some(entry) = translations.get_mut(&o.id) {
+                            *entry += translation;
+                        }
+                    });
                 m.width = new_width;
             }
         });
@@ -101,16 +106,15 @@ impl<'a> OutputsView<'a> {
         self.monitors.iter_mut().for_each(|m| {
             if m.scale != 1.0 {
                 let new_height = (m.height as f32 / m.scale) as u16;
-                let translation = if new_height > m.height {
-                    (new_height - m.height) as i32
-                } else {
-                    -((m.height - new_height) as i32)
-                };
-                copy.iter().filter(|o| o.y > m.y + m.height as i32 && (o.x <= m.x + m.width as i32 && o.x + o.width as i32 >= m.x)).for_each(|o| {
-                    if let Some(entry) = translations.get_mut(&o.id) {
-                        *entry += translation;
-                    }
-                });
+                let translation =
+                    if new_height > m.height { (new_height - m.height) as i32 } else { -((m.height - new_height) as i32) };
+                copy.iter()
+                    .filter(|o| o.y > m.y + m.height as i32 && (o.x <= m.x + m.width as i32 && o.x + o.width as i32 >= m.x))
+                    .for_each(|o| {
+                        if let Some(entry) = translations.get_mut(&o.id) {
+                            *entry += translation;
+                        }
+                    });
                 m.height = new_height;
             }
         });
@@ -198,12 +202,21 @@ impl<'a> OutputCard<'a> {
             .hexpand(false)
             .halign(gtk4::Align::Fill)
             .valign(gtk4::Align::Fill)
-            .margin_end(self.config.outputs.spacing as i32)
-            .margin_start(self.config.outputs.spacing as i32)
-            .margin_top(self.config.outputs.spacing as i32)
-            .margin_bottom(self.config.outputs.spacing as i32)
             .css_classes([self.config.classes.image_card.as_str(), self.config.classes.image_card_loading.as_str()])
             .build();
+
+        if self.area.min_x != self.monitor.x {
+            container.set_margin_start(self.config.outputs.spacing as i32);
+        }
+        if self.area.max_x != self.monitor.x + self.monitor.width as i32 {
+            container.set_margin_end(self.config.outputs.spacing as i32);
+        }
+        if self.area.min_y != self.monitor.y {
+            container.set_margin_top(self.config.outputs.spacing as i32);
+        }
+        if self.area.max_y != self.monitor.y + self.monitor.height as i32 {
+            container.set_margin_bottom(self.config.outputs.spacing as i32);
+        }
 
         let label = Label::builder()
             .max_width_chars(1)

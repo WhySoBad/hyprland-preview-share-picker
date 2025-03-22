@@ -168,11 +168,14 @@ windows:
   max_per_row: 999
   # number of clicks needed to select a window
   clicks: 2
+  # spacing in pixels between the window cards
+  spacing: 12
 
 outputs:
   # number of clicks needed to select an output
   clicks: 2
   # spacing in pixels between the outputs in the layout
+  # note: the spacing is applied from both sides (the gap is `spacing * 2`)
   spacing: 6
   # show the label with the output name
   show_label: true

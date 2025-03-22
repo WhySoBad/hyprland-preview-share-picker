@@ -221,7 +221,7 @@ pub struct OutputsConfig {
     pub clicks: u32,
     /// spacing in pixels between the outputs in the layout
     ///
-    /// **note**: the spacing is applied as margin to all directions of an output card
+    /// **note**: the spacing is applied to both sides (the effective gap is `spacing * 2`)
     pub spacing: u32,
     /// show the output name label
     pub show_label: bool,
@@ -247,11 +247,13 @@ pub struct WindowsConfig {
     pub max_per_row: u32,
     /// number of clicks to trigger selection
     pub clicks: u32,
+    /// spacing in pixels between the window cards
+    pub spacing: u32,
 }
 
 impl Default for WindowsConfig {
     fn default() -> Self {
-        Self { min_per_row: 3, max_per_row: 999, clicks: 2 }
+        Self { min_per_row: 3, max_per_row: 999, clicks: 2, spacing: 12 }
     }
 }
 
