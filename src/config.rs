@@ -228,7 +228,7 @@ pub struct OutputsConfig {
     /// size the output cards respectively to their scaling
     ///
     /// **note**: when having too weird of a layout this should probably be disabled
-    pub respect_output_scaling: bool
+    pub respect_output_scaling: bool,
 }
 
 impl Default for OutputsConfig {
