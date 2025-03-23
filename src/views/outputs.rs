@@ -217,6 +217,7 @@ impl<'a> OutputCard<'a> {
         if self.area.max_y != self.monitor.y + self.monitor.height as i32 {
             container.set_margin_bottom(self.config.outputs.spacing as i32);
         }
+        container.append(picture);
 
         if self.config.outputs.show_label {
             let label = Label::builder()
@@ -231,7 +232,6 @@ impl<'a> OutputCard<'a> {
             container.append(&label);
         }
 
-        container.append(picture);
         container
     }
 
