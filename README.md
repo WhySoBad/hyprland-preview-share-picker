@@ -178,7 +178,7 @@ outputs:
   # note: the spacing is applied from both sides (the gap is `spacing * 2`)
   spacing: 6
   # show the label with the output name
-  show_label: true
+  show_label: false
   # size the output cards respectively to their scaling
   respect_output_scaling: true
 
@@ -207,6 +207,94 @@ The widgets use their default gtk style out of the box. Using the `stylesheets` 
 can be provided which then are applied to the application.
 
 It's possible to override most of the CSS classnames of the widgets used with the `classes` config field.
+
+<details>
+
+<summary><b>Example stylesheet from the screenshot</b></summary>
+
+```css
+* {
+  all: unset;
+  font-family: JetBrains Mono NF;
+  color: #ECF2F8;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.window {
+  border-radius: 5px;
+  background-color: #0D1117;
+  border: solid 2px #21262D;
+  margin: 2px;
+}
+
+tabs {
+    padding: 0.5rem 1rem;
+}
+
+tabs > tab {
+    margin-right: 1rem;
+}
+
+.tab-label {
+    color: #89929B;
+    transition: all 0.2s ease;
+}
+
+tabs > tab:checked > .tab-label, tabs > tab:active > .tab-label {
+    text-decoration: underline currentColor;
+    color: #ECF2F8;
+}
+
+tabs > tab:focus > .tab-label {
+    color: #ECF2F8;
+}
+
+.page {
+    padding: 1rem;
+}
+
+.image-label {
+    font-size: 12px;
+    padding: 0.25rem;
+}
+
+flowboxchild > .card, button > .card {
+    transition: all 0.2s ease;
+    border: solid 2px transparent;
+    border-color: #161B22;
+    border-radius: 5px;
+    background-color: #161B22;
+    padding: 5px;
+}
+
+flowboxchild:active > .card, flowboxchild:selected > .card, button:active > .card, button:selected > .card, button:focus > .card {
+    border: solid 2px #61AFEF;
+}
+
+.image {
+    border-radius: 5px;
+}
+
+.region-button {
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    background-color: #61AFEF;
+    color: #161B22;
+    transition: all 0.2s ease;
+}
+
+.region-button:not(:disabled):hover, .region-button:not(:disabled):focus {
+    background-color: #2472C8;
+}
+
+.region-button:disabled {
+    background-color: #89929B;
+    color: #21262D;
+}
+```
+
+</details>
 
 ### Custom frontend
 
