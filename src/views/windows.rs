@@ -6,7 +6,7 @@ use gtk4::{
     prelude::{BoxExt, EventControllerExt, FlowBoxChildExt, WidgetExt},
 };
 use hyprland::{
-    data::{Client, Clients},
+    data::{Client, Clients, Monitor, Monitors, Transforms},
     shared::HyprData,
 };
 use hyprland_preview_share_picker_lib::{frame::FrameManager, image::Image, toplevel::Toplevel};
@@ -22,6 +22,7 @@ pub struct WindowsView<'a> {
     config: &'a Config,
     manager: Arc<FrameManager>,
     clients: Vec<Client>,
+    monitors: Vec<Monitor>,
 }
 
 impl<'a> WindowsView<'a> {
@@ -32,8 +33,11 @@ impl<'a> WindowsView<'a> {
         let clients = Clients::get()
             .map(|clients| clients.into_iter().collect::<Vec<_>>())
             .map_err(|err| format!("unable to get clients from hyprland socket: {err}"))?;
+        let monitors = Monitors::get()
+            .map(|monitors| monitors.into_iter().collect::<Vec<_>>())
+            .map_err(|err| format!("unable to get monitors from hyprland socket: {err}"))?;
 
-        Ok(Self { toplevels, config, manager, clients })
+        Ok(Self { toplevels, config, manager, clients, monitors })
     }
 }
 
@@ -61,8 +65,12 @@ impl View for WindowsView<'_> {
                 Some(client) => client,
                 None => return log::error!("unable to find hyprland client which matches toplevel class and title"),
             };
+            let monitor = match self.monitors.iter().find(|m| m.id == client.monitor) {
+                Some(monitor) => monitor,
+                None => return log::error!("unable to find hyprland monitor for hyprland client"),
+            };
 
-            let window_card = WindowCard::new(toplevel, client, self.config, self.manager.clone());
+            let window_card = WindowCard::new(toplevel, client, self.config, monitor.transform, self.manager.clone());
             let card = match window_card.build() {
                 Ok(card) => card,
                 Err(err) => return log::error!("unable to build window card for toplevel {}: {err}", toplevel.id),
@@ -84,11 +92,12 @@ struct WindowCard<'a> {
     client: &'a Client,
     config: &'a Config,
     manager: Arc<FrameManager>,
+    transform: Transforms,
 }
 
 impl<'a> WindowCard<'a> {
-    pub fn new(toplevel: &'a Toplevel, client: &'a Client, config: &'a Config, manager: Arc<FrameManager>) -> Self {
-        WindowCard { toplevel, client, config, manager }
+    pub fn new(toplevel: &'a Toplevel, client: &'a Client, config: &'a Config, transform: Transforms, manager: Arc<FrameManager>) -> Self {
+        WindowCard { toplevel, client, config, manager, transform }
     }
 
     pub fn build(self) -> Result<FlowBoxChild, String> {
@@ -167,6 +176,7 @@ impl<'a> WindowCard<'a> {
         let id = self.toplevel.id;
         let resize_size = self.config.image.resize_size;
         let manager = self.manager.clone();
+        let transform = self.transform;
 
         tokio::spawn(clone!(
             #[to_owned]
@@ -185,6 +195,7 @@ impl<'a> WindowCard<'a> {
                 };
 
                 img.resize_to_fit(resize_size);
+                img = img.transform(transform.into());
 
                 if tx.send(img).is_err() {
                     log::error!("unable to transmit image for toplevel {id}: channel is closed");
