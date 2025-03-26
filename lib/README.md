@@ -26,6 +26,11 @@ const WINDOW_HANDLE: u64 = 0x5713073a6a20;
 fn main() {
     let connection = Connection::connect_to_env().unwrap();
 
+    let env_toplevels = Toplevel::parse();
+    let wl_toplevels = ToplevelManager::get_toplevels(&connection).unwrap();
+    // get window handle for env_toplevel by searching for toplevel with
+    // same id in wl_toplevels
+
     // initialize new frame manager which can be used to capture multiple frames
     let mut frame_manager = FrameManager::new(&connection).unwrap();
     let buffer = frame_manager.capture_frame(WINDOW_HANDLE).unwrap();

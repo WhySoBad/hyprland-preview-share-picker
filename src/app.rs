@@ -13,7 +13,7 @@ use gtk4::{
     prelude::{BoxExt, CheckButtonExt, GtkWindowExt, WidgetExt},
 };
 use gtk4_layer_shell::*;
-use hyprland_preview_share_picker_lib::toplevel::Toplevel;
+use hyprland_preview_share_picker_lib::toplevel::{Toplevel, ToplevelManager};
 use rsass::{compile_scss, output};
 use wayland_client::Connection;
 
@@ -77,6 +77,9 @@ fn build_ui(app: &Application, config: &Config, toplevels: &[Toplevel], default_
             exit(1);
         }
     };
+
+    let toplevel_mgr = ToplevelManager::get_toplevels(&con).expect("should get toplevels");
+    log::debug!("protocol toplevels: {toplevel_mgr:#?}");
 
     let restore_token = Rc::new(RefCell::new(default_restore_token));
     let exit_action = ActionEntry::builder("select")
