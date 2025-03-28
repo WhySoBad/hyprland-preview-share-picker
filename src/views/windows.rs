@@ -70,7 +70,7 @@ impl View for WindowsView<'_> {
                 None => return log::error!("unable to find hyprland monitor for hyprland client"),
             };
 
-            let window_card = WindowCard::new(toplevel, client, self.config, monitor.transform, self.manager.clone());
+            let window_card = WindowCard::new(toplevel, self.config, monitor.transform, self.manager.clone());
             let card = match window_card.build() {
                 Ok(card) => card,
                 Err(err) => return log::error!("unable to build window card for toplevel {}: {err}", toplevel.id),
@@ -89,15 +89,14 @@ impl View for WindowsView<'_> {
 
 struct WindowCard<'a> {
     toplevel: &'a Toplevel,
-    client: &'a Client,
     config: &'a Config,
     manager: Arc<FrameManager>,
     transform: Transforms,
 }
 
 impl<'a> WindowCard<'a> {
-    pub fn new(toplevel: &'a Toplevel, client: &'a Client, config: &'a Config, transform: Transforms, manager: Arc<FrameManager>) -> Self {
-        WindowCard { toplevel, client, config, manager, transform }
+    pub fn new(toplevel: &'a Toplevel, config: &'a Config, transform: Transforms, manager: Arc<FrameManager>) -> Self {
+        WindowCard { toplevel, config, manager, transform }
     }
 
     pub fn build(self) -> Result<FlowBoxChild, String> {
@@ -171,8 +170,7 @@ impl<'a> WindowCard<'a> {
     }
 
     fn request_frame(&self, tx: Sender<Image>) {
-        let handle_str = &format!("{}", self.client.address)[2..];
-        let handle = u64::from_str_radix(handle_str, 16).expect("should be valid u64");
+        let handle = self.toplevel.window_address;
         let id = self.toplevel.id;
         let resize_size = self.config.image.resize_size;
         let manager = self.manager.clone();
