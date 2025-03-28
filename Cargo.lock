@@ -1085,7 +1085,6 @@ dependencies = [
  "image",
  "log",
  "memfd",
- "regex",
  "thiserror 2.0.11",
  "wayland-backend",
  "wayland-client",
