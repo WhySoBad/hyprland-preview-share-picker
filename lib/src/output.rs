@@ -10,6 +10,7 @@ use wayland_client::{
         wl_shm_pool::WlShmPool,
     },
 };
+use wayland_protocols::wp::linux_dmabuf::zv1::client::{zwp_linux_buffer_params_v1::ZwpLinuxBufferParamsV1, zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1};
 use wayland_protocols_wlr::screencopy::v1::client::{
     zwlr_screencopy_frame_v1::{self, ZwlrScreencopyFrameV1},
     zwlr_screencopy_manager_v1::ZwlrScreencopyManagerV1,
@@ -49,6 +50,7 @@ pub struct Output {
 #[derive(Clone)]
 pub struct OutputManager {
     shm: Option<WlShm>,
+    dmabuf: Option<ZwpLinuxDmabufV1>,
     manager: Option<ZwlrScreencopyManagerV1>,
     pub outputs: Vec<(WlOutput, Output)>,
     intialized_outputs: u32,
@@ -180,7 +182,13 @@ impl Dispatch<wl_registry::WlRegistry, ()> for OutputManager {
                     let output: WlOutput = registry.bind(name, version, handle, ());
                     state.outputs.push((output, Output::default()));
                 }
-                _ => {}
+                "zwp_linux_dmabuf_v1" => {
+                    let dmabuf: ZwpLinuxDmabufV1 = registry.bind(name, version, handle, ());
+                    state.dmabuf = Some(dmabuf);
+                }
+                _ => {
+                    println!("{interface}");
+                }
             },
             _ => {}
         }
@@ -247,7 +255,9 @@ impl Dispatch<ZwlrScreencopyFrameV1, Weak<Mutex<Frame>>> for OutputManager {
                     Ok(format) => format,
                     Err(err) => return frame.error = Some(Error::ProtocolInvalidEnum(err)),
                 };
-                if let Some(shm) = &state.shm {
+                if let Some(dmabuf) = &state.dmabuf {
+                    dmabuf.create_params(qhandle, ());
+                } else if let Some(shm) = &state.shm {
                     match Buffer::new(shm, width, height, stride, format, qhandle, ()) {
                         Ok(buffer) => frame.buffer = Some(buffer),
                         Err(err) => frame.error = Some(err),
@@ -262,14 +272,28 @@ impl Dispatch<ZwlrScreencopyFrameV1, Weak<Mutex<Frame>>> for OutputManager {
             }
             zwlr_screencopy_frame_v1::Event::Failed => frame.error = Some(Error::Failed),
             zwlr_screencopy_frame_v1::Event::Damage { .. } => {}
-            zwlr_screencopy_frame_v1::Event::LinuxDmabuf { .. } => {}
+            zwlr_screencopy_frame_v1::Event::LinuxDmabuf { format, width, height  } => {}
             zwlr_screencopy_frame_v1::Event::BufferDone => {}
             _ => {}
         }
     }
 }
 
+impl Dispatch<ZwpLinuxBufferParamsV1, ()> for OutputManager {
+    fn event(
+        state: &mut Self,
+        proxy: &ZwpLinuxBufferParamsV1,
+        event: <ZwpLinuxBufferParamsV1 as wayland_client::Proxy>::Event,
+        data: &(),
+        conn: &Connection,
+        qhandle: &wayland_client::QueueHandle<Self>,
+    ) {
+        todo!()
+    }
+}
+
 delegate_noop!(OutputManager: ignore WlShm);
 delegate_noop!(OutputManager: ignore WlShmPool);
 delegate_noop!(OutputManager: ignore WlBuffer);
+delegate_noop!(OutputManager: ignore ZwpLinuxDmabufV1);
 delegate_noop!(OutputManager: ignore ZwlrScreencopyManagerV1);

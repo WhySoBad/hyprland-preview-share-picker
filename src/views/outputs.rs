@@ -61,7 +61,7 @@ impl<'a> OutputsView<'a> {
             .map_err(|err| format!("unable to get monitors from hyprland socket: {err}"))?;
 
         // apply the transformations (rotations) to all monitors
-        monitors.iter_mut().for_each(|m| m.apply_transform());
+        // monitors.iter_mut().for_each(|m| m.apply_transform());
         let area = MonitorArea::from(&monitors);
         let mut view = Self { config, manager, monitors, area };
         if config.outputs.respect_output_scaling {
@@ -344,7 +344,7 @@ impl<'a> OutputCard<'a> {
                 };
 
                 img.resize_to_fit(resize_size);
-                img = img.transform(transform.into());
+                // img = img.transform(transform.into());
 
                 if tx.send(img).is_err() {
                     log::error!("unable to transmit image for name {name}: channel is closed");
