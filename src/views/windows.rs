@@ -45,17 +45,16 @@ impl View for WindowsView<'_> {
     fn build(&self) -> ScrolledWindow {
         let container = FlowBox::builder()
             .vexpand(false)
-            .homogeneous(false)
             .row_spacing(self.config.windows.spacing)
             .column_spacing(self.config.windows.spacing)
             .orientation(gtk4::Orientation::Horizontal)
             .homogeneous(true)
             .min_children_per_line(self.config.windows.min_per_row)
-            .max_children_per_line(self.config.windows.max_per_row)
             .build();
         let scrolled_window =
             ScrolledWindow::builder().child(&container).css_classes([self.config.classes.notebook_page.as_str()]).build();
 
+        let mut cards = 0;
         self.toplevels.iter().for_each(|toplevel| {
             log::debug!("attempting to capture frame for toplevel {}", toplevel.id);
             // this method is kindof bad since multiple windows could have the same class and title but afaik there is no clean
@@ -76,8 +75,12 @@ impl View for WindowsView<'_> {
                 Err(err) => return log::error!("unable to build window card for toplevel {}: {err}", toplevel.id),
             };
 
+            cards += 1;
             container.insert(&card, 0);
         });
+
+        // if there are less cards than max, spread them evenly on a single row
+        container.set_max_children_per_line(self.config.windows.max_per_row.min(cards));
 
         scrolled_window
     }
@@ -126,7 +129,7 @@ impl<'a> WindowCard<'a> {
             .orientation(gtk4::Orientation::Vertical)
             .vexpand(false)
             .hexpand(false)
-            .halign(gtk4::Align::Center)
+            .halign(gtk4::Align::Fill)
             .valign(gtk4::Align::Start)
             .css_classes([self.config.classes.image_card.as_str(), self.config.classes.image_card_loading.as_str()])
             .build();

@@ -253,7 +253,7 @@ pub struct WindowsConfig {
 
 impl Default for WindowsConfig {
     fn default() -> Self {
-        Self { min_per_row: 3, max_per_row: 999, clicks: 2, spacing: 12 }
+        Self { min_per_row: 3, max_per_row: 4, clicks: 2, spacing: 12 }
     }
 }
 
