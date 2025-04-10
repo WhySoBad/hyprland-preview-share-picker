@@ -22,7 +22,7 @@ use crate::{
     views::{View, outputs::OutputsView, region::RegionView, windows::WindowsView},
 };
 
-const APP_ID: &str = "ch.wysbd.hyprland-preview-screen-picker";
+const APP_ID: &str = "ch.wysbd.hyprland-preview-share-picker";
 
 pub struct App {
     gtk_app: Application,
