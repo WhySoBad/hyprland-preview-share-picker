@@ -11,7 +11,9 @@
 
 ### Using pacman
 
-The following `PKGBUILD` can be used to build and install the package locally. Simply copy the `PKGBUILD` source to an empty directory on your system and install the package and all it's dependencies using `makepkg -si`
+On Arch-based systems, the easiest and recommended way to install the share picker is using the offical [hyprland-preview-share-picker-git](https://aur.archlinux.org/packages/hyprland-preview-share-picker-git) AUR-package.
+
+Alternatively, the following `PKGBUILD` can be used to build and install the package locally. Simply copy the `PKGBUILD` source to an empty directory on your system and install the package and all it's dependencies using `makepkg -si`
 
 <details>
 <summary><b>PKGBUILD source</b></summary>

@@ -12,3 +12,7 @@
 - [x] Configurable default tab
 
 - [x] Lazily load the picture buffer rather than blocking until all frames are captured
+
+- [ ] Support multiple buffer formats (not only Xrgb8888)
+
+- [ ] Switch to using dma buffers
