@@ -45,17 +45,16 @@ impl View for WindowsView<'_> {
     fn build(&self) -> ScrolledWindow {
         let container = FlowBox::builder()
             .vexpand(false)
-            .homogeneous(false)
             .row_spacing(self.config.windows.spacing)
             .column_spacing(self.config.windows.spacing)
             .orientation(gtk4::Orientation::Horizontal)
             .homogeneous(true)
             .min_children_per_line(self.config.windows.min_per_row)
-            .max_children_per_line(self.config.windows.max_per_row)
             .build();
         let scrolled_window =
             ScrolledWindow::builder().child(&container).css_classes([self.config.classes.notebook_page.as_str()]).build();
 
+        let mut cards = 0;
         self.toplevels.iter().for_each(|toplevel| {
             log::debug!("attempting to capture frame for toplevel {}", toplevel.id);
             // this method is kindof bad since multiple windows could have the same class and title but afaik there is no clean
@@ -70,14 +69,18 @@ impl View for WindowsView<'_> {
                 None => return log::error!("unable to find hyprland monitor for hyprland client"),
             };
 
-            let window_card = WindowCard::new(toplevel, client, self.config, monitor.transform, self.manager.clone());
+            let window_card = WindowCard::new(toplevel, self.config, monitor.transform, self.manager.clone());
             let card = match window_card.build() {
                 Ok(card) => card,
                 Err(err) => return log::error!("unable to build window card for toplevel {}: {err}", toplevel.id),
             };
 
+            cards += 1;
             container.insert(&card, 0);
         });
+
+        // if there are less cards than max, spread them evenly on a single row
+        container.set_max_children_per_line(self.config.windows.max_per_row.min(cards));
 
         scrolled_window
     }
@@ -89,15 +92,14 @@ impl View for WindowsView<'_> {
 
 struct WindowCard<'a> {
     toplevel: &'a Toplevel,
-    client: &'a Client,
     config: &'a Config,
     manager: Arc<FrameManager>,
     transform: Transforms,
 }
 
 impl<'a> WindowCard<'a> {
-    pub fn new(toplevel: &'a Toplevel, client: &'a Client, config: &'a Config, transform: Transforms, manager: Arc<FrameManager>) -> Self {
-        WindowCard { toplevel, client, config, manager, transform }
+    pub fn new(toplevel: &'a Toplevel, config: &'a Config, transform: Transforms, manager: Arc<FrameManager>) -> Self {
+        WindowCard { toplevel, config, manager, transform }
     }
 
     pub fn build(self) -> Result<FlowBoxChild, String> {
@@ -127,7 +129,7 @@ impl<'a> WindowCard<'a> {
             .orientation(gtk4::Orientation::Vertical)
             .vexpand(false)
             .hexpand(false)
-            .halign(gtk4::Align::Center)
+            .halign(gtk4::Align::Fill)
             .valign(gtk4::Align::Start)
             .css_classes([self.config.classes.image_card.as_str(), self.config.classes.image_card_loading.as_str()])
             .build();
@@ -171,8 +173,7 @@ impl<'a> WindowCard<'a> {
     }
 
     fn request_frame(&self, tx: Sender<Image>) {
-        let handle_str = &format!("{}", self.client.address)[2..];
-        let handle = u64::from_str_radix(handle_str, 16).expect("should be valid u64");
+        let handle = self.toplevel.window_address;
         let id = self.toplevel.id;
         let resize_size = self.config.image.resize_size;
         let manager = self.manager.clone();
