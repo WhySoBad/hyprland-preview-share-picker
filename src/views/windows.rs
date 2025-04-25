@@ -69,7 +69,13 @@ impl View for WindowsView<'_> {
                 None => return log::error!("unable to find hyprland monitor for hyprland client"),
             };
 
-            let window_card = WindowCard::new(toplevel, self.config, monitor.transform, self.manager.clone());
+            let handle_str = &format!("{}", client.address)[2..];
+            let handle = match u64::from_str_radix(handle_str, 16) {
+                Ok(handle) => handle,
+                Err(err) => return log::error!("unable to convert client address to u64: {err}")
+            };
+
+            let window_card = WindowCard::new(toplevel, self.config, monitor.transform, handle, self.manager.clone());
             let card = match window_card.build() {
                 Ok(card) => card,
                 Err(err) => return log::error!("unable to build window card for toplevel {}: {err}", toplevel.id),
@@ -95,11 +101,12 @@ struct WindowCard<'a> {
     config: &'a Config,
     manager: Arc<FrameManager>,
     transform: Transforms,
+    alt_handle: u64
 }
 
 impl<'a> WindowCard<'a> {
-    pub fn new(toplevel: &'a Toplevel, config: &'a Config, transform: Transforms, manager: Arc<FrameManager>) -> Self {
-        WindowCard { toplevel, config, manager, transform }
+    pub fn new(toplevel: &'a Toplevel, config: &'a Config, transform: Transforms, alt_handle: u64, manager: Arc<FrameManager>) -> Self {
+        WindowCard { alt_handle, toplevel, config, manager, transform }
     }
 
     pub fn build(self) -> Result<FlowBoxChild, String> {
@@ -173,7 +180,10 @@ impl<'a> WindowCard<'a> {
     }
 
     fn request_frame(&self, tx: Sender<Image>) {
-        let handle = self.toplevel.window_address;
+        let handle = self.toplevel.window_address.unwrap_or_else(|| {
+            log::warn!("missing window address in toplevel {}: falling back to potentially non unique socket window address", self.toplevel.id);
+            self.alt_handle
+        });
         let id = self.toplevel.id;
         let resize_size = self.config.image.resize_size;
         let manager = self.manager.clone();

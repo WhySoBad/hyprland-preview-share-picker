@@ -7,7 +7,7 @@ pub struct Toplevel {
     /// title of the hyprland window the toplevel belongs to
     pub title: String,
     /// address of the window associated with the toplevel
-    pub window_address: u64,
+    pub window_address: Option<u64>,
 }
 
 impl Toplevel {
@@ -32,23 +32,33 @@ impl Toplevel {
                 log::warn!("found no toplevel class separator");
                 break;
             };
-            let class = str[id_sep_pos+5..class_sep_pos].to_string();
+            let class = str[id_sep_pos + 5..class_sep_pos].to_string();
             let Some(title_sep_pos) = str.find("[HE>]") else {
                 log::warn!("found no toplevel title separator");
                 break;
             };
-            let title = str[class_sep_pos+5..title_sep_pos].to_string();
-            let Some(window_sep_pos) = str.find("[HA>]") else {
-                log::warn!("found no toplevel window separator");
-                break;
-            };
-            let Ok(window_address) = str[title_sep_pos+5..window_sep_pos].parse::<u64>() else {
-                log::warn!("window address cannot be parsed to unsigned integer");
-                break;
+            let title = str[class_sep_pos + 5..title_sep_pos].to_string();
+
+            // for compatibility until the next hyprland release we support both, the [HA>] argument and it's absence
+            let window_address = match str.find("[HA>]") {
+                Some(window_sep_pos) => match str[title_sep_pos + 5..window_sep_pos].parse::<u64>() {
+                    Ok(window_address) => {
+                        str = &str[window_sep_pos + 5..];
+                        Some(window_address)
+                    }
+                    Err(_) => {
+                        log::warn!("window address cannot be parsed to unsigned integer");
+                        break;
+                    }
+                },
+                None => {
+                    log::warn!("found no toplevel window separator");
+                    str = &str[title_sep_pos + 5..];
+                    None
+                }
             };
 
             toplevels.push(Toplevel { id, class, title, window_address });
-            str = &str[window_sep_pos+5..]
         }
 
         return toplevels;
