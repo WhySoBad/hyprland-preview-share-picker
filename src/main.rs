@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => {
             let toplevel_sharing_list = std::env::var("XDPH_WINDOW_SHARING_LIST").unwrap_or_default();
             log::debug!("XDPH_WINDOW_SHARING_LIST = {toplevel_sharing_list}");
-            let toplevels = Toplevel::parse(&toplevel_sharing_list);
+            let toplevels = Toplevel::parse_list(&toplevel_sharing_list);
             log::debug!("using config: {config:#?}");
 
             log::debug!("got toplevels {toplevels:#?}");
