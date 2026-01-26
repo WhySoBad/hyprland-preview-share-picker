@@ -1,3 +1,5 @@
 **/target
 *.png
 schema.json
+.direnv
+.env*
