@@ -70,6 +70,8 @@ package() {
 }
 ```
 
+</details>
+
 ### Using Nix
 
 To install this project using Nix:
@@ -104,9 +106,6 @@ To run this project using Nix:
 ```bash
 nix run .?submodules=1
 ```
-
-
-</details>
 
 ### Building yourself
 
