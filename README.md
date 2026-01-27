@@ -70,6 +70,42 @@ package() {
 }
 ```
 
+### Using Nix
+
+To install this project using Nix:
+
+```nix
+inputs = {
+  hyprland-preview-share-picker = {
+    url = "github:WhySoBad/hyprland-preview-share-picker";
+    # You may optionally override the nixpkgs input to save space.
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
+};
+```
+
+```nix
+{ inputs, ... }:
+{
+  environment.systemPackages = [
+    inputs.hyprland-preview-share-picker.packages.${pkgs.stdenv.hostPlatform.system}.default
+  ];
+}
+```
+
+To build this project using Nix:
+
+```bash
+nix build .?submodules=1
+```
+
+To run this project using Nix:
+
+```bash
+nix run .?submodules=1
+```
+
+
 </details>
 
 ### Building yourself
