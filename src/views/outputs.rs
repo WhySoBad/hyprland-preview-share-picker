@@ -78,7 +78,7 @@ impl<'a> OutputsView<'a> {
             translations.insert(m.id, 0);
         });
 
-        self.monitors.sort_by(|a, b| a.x.cmp(&b.x));
+        self.monitors.sort_by_key(|a| a.x);
         let copy = self.monitors.clone();
         self.monitors.iter_mut().for_each(|m| {
             translations.insert(m.id, 0);
@@ -101,7 +101,7 @@ impl<'a> OutputsView<'a> {
             *value = 0;
         });
 
-        self.monitors.sort_by(|a, b| a.y.cmp(&b.y));
+        self.monitors.sort_by_key(|a| a.y);
         let copy = self.monitors.clone();
         self.monitors.iter_mut().for_each(|m| {
             if m.scale != 1.0 {
@@ -246,12 +246,12 @@ impl<'a> OutputCard<'a> {
             #[strong]
             name,
             move |gesture, n, _, _| {
-                if n as i64 == clicks as i64 {
-                    if let Some(widget) = gesture.widget() {
-                        widget
-                            .activate_action("win.select", Some(&format!("screen:{name}").to_variant()))
-                            .expect("select action should be registered on the window")
-                    }
+                if n as i64 == clicks as i64
+                    && let Some(widget) = gesture.widget()
+                {
+                    widget
+                        .activate_action("win.select", Some(&format!("screen:{name}").to_variant()))
+                        .expect("select action should be registered on the window")
                 }
             }
         ));
