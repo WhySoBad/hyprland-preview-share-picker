@@ -13,7 +13,7 @@ use hyprland_preview_share_picker_lib::{frame::FrameManager, image::Image, tople
 use tokio::sync::oneshot::{Receiver, Sender};
 use wayland_client::Connection;
 
-use crate::{config::Config, image::ImageExt};
+use crate::{config::Config, image::ImageExt, util::ClientExt};
 
 use super::View;
 
@@ -31,7 +31,15 @@ impl<'a> WindowsView<'a> {
             .map(Arc::new)
             .map_err(|err| format!("unable to create new frame manager from connection: {err}"))?;
         let clients = Clients::get()
-            .map(|clients| clients.into_iter().collect::<Vec<_>>())
+            .map(|clients| {
+                clients
+                    .into_iter()
+                    .map(|mut client| {
+                        client.sanitize();
+                        client
+                    })
+                    .collect::<Vec<_>>()
+            })
             .map_err(|err| format!("unable to get clients from hyprland socket: {err}"))?;
         let monitors = Monitors::get()
             .map(|monitors| monitors.into_iter().collect::<Vec<_>>())
@@ -72,7 +80,7 @@ impl View for WindowsView<'_> {
             let handle_str = &format!("{}", client.address)[2..];
             let handle = match u64::from_str_radix(handle_str, 16) {
                 Ok(handle) => handle,
-                Err(err) => return log::error!("unable to convert client address to u64: {err}")
+                Err(err) => return log::error!("unable to convert client address to u64: {err}"),
             };
 
             let window_card = WindowCard::new(toplevel, self.config, monitor.transform, handle, self.manager.clone());
@@ -101,11 +109,17 @@ struct WindowCard<'a> {
     config: &'a Config,
     manager: Arc<FrameManager>,
     transform: Transforms,
-    alt_handle: u64
+    alt_handle: u64,
 }
 
 impl<'a> WindowCard<'a> {
-    pub fn new(toplevel: &'a Toplevel, config: &'a Config, transform: Transforms, alt_handle: u64, manager: Arc<FrameManager>) -> Self {
+    pub fn new(
+        toplevel: &'a Toplevel,
+        config: &'a Config,
+        transform: Transforms,
+        alt_handle: u64,
+        manager: Arc<FrameManager>,
+    ) -> Self {
         WindowCard { alt_handle, toplevel, config, manager, transform }
     }
 
@@ -162,12 +176,12 @@ impl<'a> WindowCard<'a> {
         let clicks = self.config.windows.clicks;
         let id = self.toplevel.id;
         gesture.connect_released(move |gesture, n, _, _| {
-            if n as i64 == clicks as i64 {
-                if let Some(widget) = gesture.widget() {
-                    widget
-                        .activate_action("win.select", Some(&format!("window:{id}").to_variant()))
-                        .expect("select action should be registered on the window")
-                }
+            if n as i64 == clicks as i64
+                && let Some(widget) = gesture.widget()
+            {
+                widget
+                    .activate_action("win.select", Some(&format!("window:{id}").to_variant()))
+                    .expect("select action should be registered on the window")
             }
         });
         container.add_controller(gesture);
@@ -181,7 +195,10 @@ impl<'a> WindowCard<'a> {
 
     fn request_frame(&self, tx: Sender<Image>) {
         let handle = self.toplevel.window_address.unwrap_or_else(|| {
-            log::warn!("missing window address in toplevel {}: falling back to potentially non unique socket window address", self.toplevel.id);
+            log::warn!(
+                "missing window address in toplevel {}: falling back to potentially non unique socket window address",
+                self.toplevel.id
+            );
             self.alt_handle
         });
         let id = self.toplevel.id;

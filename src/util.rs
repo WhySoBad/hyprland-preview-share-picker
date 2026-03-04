@@ -1,4 +1,4 @@
-use hyprland::data::Monitor;
+use hyprland::data::{Client, Monitor};
 
 pub trait MonitorTransformExt {
     fn apply_transform(&mut self);
@@ -19,4 +19,19 @@ impl MonitorTransformExt for Monitor {
             }
         }
     }
+}
+
+pub trait ClientExt {
+    fn sanitize(&mut self);
+}
+
+impl ClientExt for Client {
+    fn sanitize(&mut self) {
+        self.title = sanitize_string(&self.title);
+        self.class = sanitize_string(&self.class);
+    }
+}
+
+fn sanitize_string(target: &str) -> String {
+    target.replace(['\'', '\"', '$', '`'], " ").replace(">]", ">")
 }
