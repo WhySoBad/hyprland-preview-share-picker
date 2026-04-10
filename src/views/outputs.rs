@@ -38,8 +38,8 @@ impl From<&Vec<Monitor>> for MonitorArea {
 
         let width = max_x - min_x;
         let height = max_y - min_y;
-        let offset_x = -min_x.min(0);
-        let offset_y = -min_y.min(0);
+        let offset_x = -min_x;
+        let offset_y = -min_y;
         Self { min_x, max_x, min_y, max_y, width, height, aspect_ratio: width as f64 / height as f64, offset_x, offset_y }
     }
 }
