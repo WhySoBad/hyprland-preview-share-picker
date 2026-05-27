@@ -57,7 +57,7 @@ impl<'a> OutputsView<'a> {
             .map(Arc::new)
             .map_err(|err| format!("unable to create new output manager from connection: {err}"))?;
         let mut monitors = Monitors::get()
-            .map(|monitors| monitors.into_iter().collect::<Vec<_>>())
+            .map(|monitors| monitors.into_iter().filter(|monitor| !monitor.disabled).collect::<Vec<_>>())
             .map_err(|err| format!("unable to get monitors from hyprland socket: {err}"))?;
 
         // apply the transformations (rotations) to all monitors
