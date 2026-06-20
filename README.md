@@ -23,11 +23,11 @@ pkgname="hyprland-preview-share-picker-git"
 pkgver=v0.1.0
 pkgrel=1
 pkgdesc="An alternative share picker for hyprland with window and monitor previews"
-arch=(x86_64)
+arch=('x86_64' 'aarch64')
 url="https://github.com/WhySoBad/hyprland-preview-share-picker"
 license=(MIT)
 depends=('gtk4' 'gtk4-layer-shell' 'xdg-desktop-portal-hyprland' 'hyprland')
-makedepends=(cargo-nightly)
+makedepends=('cargo' 'git')
 optdepends=(
   'slurp: default tool for selecting share regions'
 )
@@ -52,7 +52,7 @@ prepare() {
 build() {
     cd "$pkgname"
 
-    export RUSTUP_TOOLCHAIN=nightly
+    export RUSTUP_TOOLCHAIN=stable
     export CARGO_TARGET_DIR=target
 
     cargo build --frozen --release
