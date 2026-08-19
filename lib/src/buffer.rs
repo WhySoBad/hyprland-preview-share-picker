@@ -1,13 +1,10 @@
-use std::{io::Read, os::fd::AsFd};
+use std::io::Read;
+use std::os::fd::AsFd;
 
-use wayland_client::{
-    Dispatch, QueueHandle,
-    protocol::{
-        wl_buffer::WlBuffer,
-        wl_shm::{Format, WlShm},
-        wl_shm_pool::WlShmPool,
-    },
-};
+use wayland_client::protocol::wl_buffer::WlBuffer;
+use wayland_client::protocol::wl_shm::{Format, WlShm};
+use wayland_client::protocol::wl_shm_pool::WlShmPool;
+use wayland_client::{Dispatch, QueueHandle};
 
 use crate::error::Error;
 

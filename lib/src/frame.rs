@@ -1,18 +1,18 @@
-use wayland_client::{
-    Connection, Dispatch, delegate_noop,
-    protocol::{wl_buffer::WlBuffer, wl_registry, wl_shm::WlShm, wl_shm_pool::WlShmPool},
-};
-
-use crate::{
-    Frame,
-    buffer::Buffer,
-    error::Error,
-    protocols::hyprland_toplevel_export_v1::{
-        hyprland_toplevel_export_frame_v1::{self, HyprlandToplevelExportFrameV1},
-        hyprland_toplevel_export_manager_v1::HyprlandToplevelExportManagerV1,
-    },
-};
 use std::sync::{Arc, Mutex, Weak};
+
+use wayland_client::protocol::wl_buffer::WlBuffer;
+use wayland_client::protocol::wl_registry;
+use wayland_client::protocol::wl_shm::WlShm;
+use wayland_client::protocol::wl_shm_pool::WlShmPool;
+use wayland_client::{Connection, Dispatch, delegate_noop};
+
+use crate::Frame;
+use crate::buffer::Buffer;
+use crate::error::Error;
+use crate::protocols::hyprland_toplevel_export_v1::hyprland_toplevel_export_frame_v1::{
+    self, HyprlandToplevelExportFrameV1,
+};
+use crate::protocols::hyprland_toplevel_export_v1::hyprland_toplevel_export_manager_v1::HyprlandToplevelExportManagerV1;
 
 #[derive(Clone)]
 pub struct FrameManager {

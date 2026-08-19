@@ -1,21 +1,22 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
+use std::sync::Arc;
 
-use glib::{clone, variant::ToVariant};
-use gtk4::{
-    Box, Button, Fixed, GestureClick, Label, Picture, ScrolledWindow,
-    prelude::{BoxExt, ButtonExt, EventControllerExt, FixedExt, WidgetExt, WidgetExtManual},
-};
-use hyprland::{
-    data::{Monitor, Monitors},
-    shared::HyprData,
-};
-use hyprland_preview_share_picker_lib::{image::Image, output::OutputManager};
+use glib::clone;
+use glib::variant::ToVariant;
+use gtk4::prelude::{BoxExt, ButtonExt, EventControllerExt, FixedExt, WidgetExt, WidgetExtManual};
+use gtk4::{Box, Button, Fixed, GestureClick, Label, Picture, ScrolledWindow};
+use hyprland::data::{Monitor, Monitors};
+use hyprland::shared::HyprData;
+use hyprland_preview_share_picker_lib::image::Image;
+use hyprland_preview_share_picker_lib::output::OutputManager;
 use tokio::sync::oneshot::{Receiver, Sender};
-use wayland_client::{Connection, protocol::wl_output::WlOutput};
-
-use crate::{config::Config, image::ImageExt, util::MonitorTransformExt};
+use wayland_client::Connection;
+use wayland_client::protocol::wl_output::WlOutput;
 
 use super::View;
+use crate::config::Config;
+use crate::image::ImageExt;
+use crate::util::MonitorTransformExt;
 
 struct MonitorArea {
     min_x: i32,

@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use app::App;
 use clap::Parser;
 use cli::Cli;
@@ -5,7 +7,6 @@ use config::Config;
 use hyprland_preview_share_picker_lib::toplevel::Toplevel;
 use log::LevelFilter;
 use schemars::r#gen::SchemaSettings;
-use std::io::Write;
 
 mod app;
 mod cli;

@@ -1,21 +1,21 @@
 use std::sync::Arc;
 
-use glib::{clone, variant::ToVariant};
-use gtk4::{
-    Box, FlowBox, FlowBoxChild, GestureClick, Label, Picture, ScrolledWindow,
-    prelude::{BoxExt, EventControllerExt, FlowBoxChildExt, WidgetExt},
-};
-use hyprland::{
-    data::{Client, Clients},
-    shared::HyprData,
-};
-use hyprland_preview_share_picker_lib::{frame::FrameManager, image::Image, toplevel::Toplevel};
+use glib::clone;
+use glib::variant::ToVariant;
+use gtk4::prelude::{BoxExt, EventControllerExt, FlowBoxChildExt, WidgetExt};
+use gtk4::{Box, FlowBox, FlowBoxChild, GestureClick, Label, Picture, ScrolledWindow};
+use hyprland::data::{Client, Clients};
+use hyprland::shared::HyprData;
+use hyprland_preview_share_picker_lib::frame::FrameManager;
+use hyprland_preview_share_picker_lib::image::Image;
+use hyprland_preview_share_picker_lib::toplevel::Toplevel;
 use tokio::sync::oneshot::{Receiver, Sender};
 use wayland_client::Connection;
 
-use crate::{config::Config, image::ImageExt, util::ClientExt};
-
 use super::View;
+use crate::config::Config;
+use crate::image::ImageExt;
+use crate::util::ClientExt;
 
 pub struct WindowsView<'a> {
     toplevels: &'a [Toplevel],

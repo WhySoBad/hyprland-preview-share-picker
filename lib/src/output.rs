@@ -1,21 +1,17 @@
 use std::sync::{Arc, Mutex, Weak};
 
-use wayland_client::{
-    Connection, Dispatch, EventQueue, delegate_noop,
-    protocol::{
-        wl_buffer::WlBuffer,
-        wl_output::{self, Mode, Subpixel, Transform, WlOutput},
-        wl_registry,
-        wl_shm::WlShm,
-        wl_shm_pool::WlShmPool,
-    },
-};
-use wayland_protocols_wlr::screencopy::v1::client::{
-    zwlr_screencopy_frame_v1::{self, ZwlrScreencopyFrameV1},
-    zwlr_screencopy_manager_v1::ZwlrScreencopyManagerV1,
-};
+use wayland_client::protocol::wl_buffer::WlBuffer;
+use wayland_client::protocol::wl_output::{self, Mode, Subpixel, Transform, WlOutput};
+use wayland_client::protocol::wl_registry;
+use wayland_client::protocol::wl_shm::WlShm;
+use wayland_client::protocol::wl_shm_pool::WlShmPool;
+use wayland_client::{Connection, Dispatch, EventQueue, delegate_noop};
+use wayland_protocols_wlr::screencopy::v1::client::zwlr_screencopy_frame_v1::{self, ZwlrScreencopyFrameV1};
+use wayland_protocols_wlr::screencopy::v1::client::zwlr_screencopy_manager_v1::ZwlrScreencopyManagerV1;
 
-use crate::{Frame, buffer::Buffer, error::Error};
+use crate::Frame;
+use crate::buffer::Buffer;
+use crate::error::Error;
 
 #[derive(Debug, Clone)]
 pub struct Geometry {

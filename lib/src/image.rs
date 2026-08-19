@@ -1,4 +1,5 @@
-use image::{RgbImage, RgbaImage, imageops::resize};
+use image::imageops::resize;
+use image::{RgbImage, RgbaImage};
 
 use crate::buffer::Buffer;
 

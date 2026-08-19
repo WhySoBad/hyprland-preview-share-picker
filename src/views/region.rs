@@ -1,15 +1,12 @@
 use std::process::Command;
 
 use glib::variant::ToVariant;
-use gtk4::{
-    Box, Button, Label, ScrolledWindow,
-    prelude::{BoxExt, ButtonExt, WidgetExt},
-};
+use gtk4::prelude::{BoxExt, ButtonExt, WidgetExt};
+use gtk4::{Box, Button, Label, ScrolledWindow};
 use regex::Regex;
 
-use crate::config::Config;
-
 use super::View;
+use crate::config::Config;
 
 pub struct RegionView<'a> {
     config: &'a Config,

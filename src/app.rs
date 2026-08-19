@@ -1,26 +1,28 @@
-use std::{cell::RefCell, process::exit, rc::Rc};
+use std::cell::RefCell;
+use std::process::exit;
+use std::rc::Rc;
 
 use glib::variant::StaticVariantType;
+use gtk4::gdk::Display;
+use gtk4::gio::ActionEntry;
+use gtk4::gio::prelude::{ActionMapExtManual, ApplicationExt, ApplicationExtManual};
+use gtk4::glib::object::IsA;
+use gtk4::glib::{ExitCode, clone};
+use gtk4::prelude::{BoxExt, CheckButtonExt, GtkWindowExt, WidgetExt};
 use gtk4::{
     Application, ApplicationWindow, Box, CheckButton, CssProvider, EventControllerKey, Notebook,
     STYLE_PROVIDER_PRIORITY_APPLICATION, Widget,
-    gdk::Display,
-    gio::{
-        ActionEntry,
-        prelude::{ActionMapExtManual, ApplicationExt, ApplicationExtManual},
-    },
-    glib::{ExitCode, clone, object::IsA},
-    prelude::{BoxExt, CheckButtonExt, GtkWindowExt, WidgetExt},
 };
 use gtk4_layer_shell::*;
 use hyprland_preview_share_picker_lib::toplevel::Toplevel;
 use rsass::{compile_scss, output};
 use wayland_client::Connection;
 
-use crate::{
-    config::{self, Config},
-    views::{View, outputs::OutputsView, region::RegionView, windows::WindowsView},
-};
+use crate::config::{self, Config};
+use crate::views::View;
+use crate::views::outputs::OutputsView;
+use crate::views::region::RegionView;
+use crate::views::windows::WindowsView;
 
 const APP_ID: &str = "ch.wysbd.hyprland-preview-share-picker";
 
