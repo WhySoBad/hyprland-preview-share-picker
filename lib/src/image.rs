@@ -1,7 +1,4 @@
-use image::{
-    RgbImage, RgbaImage,
-    imageops::{flip_vertical_in_place, resize, rotate90, rotate180_in_place, rotate270},
-};
+use image::{RgbImage, RgbaImage, imageops::resize};
 
 use crate::buffer::Buffer;
 
@@ -43,74 +40,6 @@ impl Image {
                 self.buffer = ImageKind::Xrgb(sized);
             }
         }
-    }
-
-    /// apply an output transformation to the image
-    pub fn transform(mut self, transform: Transforms) -> Self {
-        self.buffer = match transform {
-            Transforms::Normal => self.buffer,
-            Transforms::Normal90 => match self.buffer {
-                ImageKind::Rgb(image_buffer) => ImageKind::Rgb(rotate90(&image_buffer)),
-                ImageKind::Xrgb(image_buffer) => ImageKind::Xrgb(rotate90(&image_buffer)),
-            },
-            Transforms::Normal180 => {
-                match &mut self.buffer {
-                    ImageKind::Rgb(image_buffer) => rotate180_in_place(image_buffer),
-                    ImageKind::Xrgb(image_buffer) => rotate180_in_place(image_buffer),
-                };
-                self.buffer
-            }
-            Transforms::Normal270 => match self.buffer {
-                ImageKind::Rgb(image_buffer) => ImageKind::Rgb(rotate270(&image_buffer)),
-                ImageKind::Xrgb(image_buffer) => ImageKind::Xrgb(rotate270(&image_buffer)),
-            },
-            Transforms::Flipped => {
-                match &mut self.buffer {
-                    ImageKind::Rgb(image_buffer) => flip_vertical_in_place(image_buffer),
-                    ImageKind::Xrgb(image_buffer) => flip_vertical_in_place(image_buffer),
-                }
-                self.buffer
-            }
-            Transforms::Flipped90 => match &mut self.buffer {
-                ImageKind::Rgb(image_buffer) => {
-                    flip_vertical_in_place(image_buffer);
-                    ImageKind::Rgb(rotate90(image_buffer))
-                }
-                ImageKind::Xrgb(image_buffer) => {
-                    flip_vertical_in_place(image_buffer);
-                    ImageKind::Xrgb(rotate90(image_buffer))
-                }
-            },
-            Transforms::Flipped180 => {
-                match &mut self.buffer {
-                    ImageKind::Rgb(image_buffer) => {
-                        flip_vertical_in_place(image_buffer);
-                        rotate180_in_place(image_buffer);
-                    }
-                    ImageKind::Xrgb(image_buffer) => {
-                        flip_vertical_in_place(image_buffer);
-                        rotate180_in_place(image_buffer);
-                    }
-                };
-                self.buffer
-            }
-            Transforms::Flipped270 => match &mut self.buffer {
-                ImageKind::Rgb(image_buffer) => {
-                    flip_vertical_in_place(image_buffer);
-                    ImageKind::Rgb(rotate270(image_buffer))
-                }
-                ImageKind::Xrgb(image_buffer) => {
-                    flip_vertical_in_place(image_buffer);
-                    ImageKind::Xrgb(rotate270(image_buffer))
-                }
-            },
-        };
-
-        self.aspect_ratio = match &self.buffer {
-            ImageKind::Rgb(image_buffer) => image_buffer.width() as f64 / image_buffer.height() as f64,
-            ImageKind::Xrgb(image_buffer) => image_buffer.width() as f64 / image_buffer.height() as f64,
-        };
-        self
     }
 
     /// resize the image buffer such that the bigger of the two dimensions is `size` long

@@ -321,7 +321,6 @@ impl<'a> OutputCard<'a> {
         let manager = self.manager.clone();
         let name = &self.monitor.name;
         let output = self.output;
-        let transform = self.monitor.transform;
 
         tokio::spawn(clone!(
             #[strong]
@@ -344,7 +343,6 @@ impl<'a> OutputCard<'a> {
                 };
 
                 img.resize_to_fit(resize_size);
-                img = img.transform(transform.into());
 
                 if tx.send(img).is_err() {
                     log::error!("unable to transmit image for name {name}: channel is closed");
