@@ -203,13 +203,16 @@ pub struct RegionConfig {
     /// command to use for the region selection
     ///
     /// the command should return a value in the following format:
-    /// <output>@<x>,<y>,<w>,<h> (e.g. DP-3@2789,436,756,576)
+    /// <output>@<x>,<y>,<w>,<h> (e.g. DP-3@869,436,756,576)
+    ///
+    /// x and y have to be relative to the top left corner of the output,
+    /// not to the origin of the monitor layout
     pub command: String,
 }
 
 impl Default for RegionConfig {
     fn default() -> Self {
-        Self { command: String::from("slurp -f '%o@%x,%y,%w,%h'") }
+        Self { command: String::from("slurp -f '%o@%X,%Y,%W,%H'") }
     }
 }
 
