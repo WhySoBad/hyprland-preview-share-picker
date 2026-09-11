@@ -4,8 +4,6 @@ use glib::clone;
 use glib::variant::ToVariant;
 use gtk4::prelude::{BoxExt, EventControllerExt, FlowBoxChildExt, WidgetExt};
 use gtk4::{Box, FlowBox, FlowBoxChild, GestureClick, Label, Picture, ScrolledWindow};
-use hyprland::data::{Client, Clients};
-use hyprland::shared::HyprData;
 use hyprland_preview_share_picker_lib::frame::FrameManager;
 use hyprland_preview_share_picker_lib::image::Image;
 use hyprland_preview_share_picker_lib::toplevel::Toplevel;
@@ -15,13 +13,11 @@ use wayland_client::Connection;
 use super::View;
 use crate::config::Config;
 use crate::image::ImageExt;
-use crate::util::ClientExt;
 
 pub struct WindowsView<'a> {
     toplevels: &'a [Toplevel],
     config: &'a Config,
     manager: Arc<FrameManager>,
-    clients: Vec<Client>,
 }
 
 impl<'a> WindowsView<'a> {
@@ -29,19 +25,8 @@ impl<'a> WindowsView<'a> {
         let manager = FrameManager::new(connection)
             .map(Arc::new)
             .map_err(|err| format!("unable to create new frame manager from connection: {err}"))?;
-        let clients = Clients::get()
-            .map(|clients| {
-                clients
-                    .into_iter()
-                    .map(|mut client| {
-                        client.sanitize();
-                        client
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .map_err(|err| format!("unable to get clients from hyprland socket: {err}"))?;
 
-        Ok(Self { toplevels, config, manager, clients })
+        Ok(Self { toplevels, config, manager })
     }
 }
 
@@ -61,21 +46,9 @@ impl View for WindowsView<'_> {
         let mut cards = 0;
         self.toplevels.iter().for_each(|toplevel| {
             log::debug!("attempting to capture frame for toplevel {}", toplevel.id);
-            // this method is kindof bad since multiple windows could have the same class and title but afaik there is no clean
-            // way to get a hyprland window address for a wayland toplevel id
             log::debug!("toplevel = {toplevel:?}");
-            let client = match self.clients.iter().find(|c| c.class.eq(&toplevel.class) && c.title.eq(&toplevel.title)) {
-                Some(client) => client,
-                None => return log::error!("unable to find hyprland client which matches toplevel class and title"),
-            };
 
-            let handle_str = &format!("{}", client.address)[2..];
-            let handle = match u64::from_str_radix(handle_str, 16) {
-                Ok(handle) => handle,
-                Err(err) => return log::error!("unable to convert client address to u64: {err}"),
-            };
-
-            let window_card = WindowCard::new(toplevel, self.config, handle, self.manager.clone());
+            let window_card = WindowCard::new(toplevel, self.config, self.manager.clone());
             let card = match window_card.build() {
                 Ok(card) => card,
                 Err(err) => return log::error!("unable to build window card for toplevel {}: {err}", toplevel.id),
@@ -100,12 +73,11 @@ struct WindowCard<'a> {
     toplevel: &'a Toplevel,
     config: &'a Config,
     manager: Arc<FrameManager>,
-    alt_handle: u64,
 }
 
 impl<'a> WindowCard<'a> {
-    pub fn new(toplevel: &'a Toplevel, config: &'a Config, alt_handle: u64, manager: Arc<FrameManager>) -> Self {
-        WindowCard { alt_handle, toplevel, config, manager }
+    pub fn new(toplevel: &'a Toplevel, config: &'a Config, manager: Arc<FrameManager>) -> Self {
+        WindowCard { toplevel, config, manager }
     }
 
     pub fn build(self) -> Result<FlowBoxChild, String> {
@@ -179,13 +151,7 @@ impl<'a> WindowCard<'a> {
     }
 
     fn request_frame(&self, tx: Sender<Image>) {
-        let handle = self.toplevel.window_address.unwrap_or_else(|| {
-            log::warn!(
-                "missing window address in toplevel {}: falling back to potentially non unique socket window address",
-                self.toplevel.id
-            );
-            self.alt_handle
-        });
+        let handle = self.toplevel.window_address;
         let id = self.toplevel.id;
         let resize_size = self.config.image.resize_size;
         let manager = self.manager.clone();
