@@ -12,7 +12,6 @@ mod app;
 mod cli;
 mod config;
 mod image;
-mod util;
 mod views;
 
 #[tokio::main]

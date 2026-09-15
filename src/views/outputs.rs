@@ -5,51 +5,128 @@ use glib::clone;
 use glib::variant::ToVariant;
 use gtk4::prelude::{BoxExt, ButtonExt, EventControllerExt, FixedExt, WidgetExt, WidgetExtManual};
 use gtk4::{Box, Button, Fixed, GestureClick, Label, Picture, ScrolledWindow};
-use hyprland::data::{Monitor, Monitors};
-use hyprland::shared::HyprData;
 use hyprland_preview_share_picker_lib::image::Image;
-use hyprland_preview_share_picker_lib::output::OutputManager;
+use hyprland_preview_share_picker_lib::output::{Output, OutputManager};
 use tokio::sync::oneshot::{Receiver, Sender};
 use wayland_client::Connection;
-use wayland_client::protocol::wl_output::WlOutput;
 
 use super::View;
 use crate::config::Config;
 use crate::image::ImageExt;
-use crate::util::MonitorTransformExt;
+use crate::views::outputs::area::OutputArea;
 
-struct MonitorArea {
-    min_x: i32,
-    max_x: i32,
-    min_y: i32,
-    max_y: i32,
-    aspect_ratio: f64,
-    width: i32,
-    height: i32,
-    offset_x: i32,
-    offset_y: i32,
-}
+/// A rectangular geometry consisting of (x, y, width, height).
+type Geometry = (i32, i32, i32, i32);
 
-impl From<&Vec<Monitor>> for MonitorArea {
-    fn from(monitors: &Vec<Monitor>) -> Self {
-        let min_x = monitors.iter().min_by_key(|m| m.x).map(|m| m.x).unwrap_or_default();
-        let min_y = monitors.iter().min_by_key(|m| m.y).map(|m| m.y).unwrap_or_default();
-        let max_x = monitors.iter().max_by_key(|m| m.x + m.width as i32).map(|m| m.x + m.width as i32).unwrap_or_default();
-        let max_y = monitors.iter().max_by_key(|m| m.y + m.height as i32).map(|m| m.y + m.height as i32).unwrap_or_default();
+mod area {
+    use std::collections::hash_map::Values;
 
-        let width = max_x - min_x;
-        let height = max_y - min_y;
-        let offset_x = -min_x;
-        let offset_y = -min_y;
-        Self { min_x, max_x, min_y, max_y, width, height, aspect_ratio: width as f64 / height as f64, offset_x, offset_y }
+    use super::*;
+
+    /// The area spanned by all outputs after having their rotations and scaling
+    /// applied.
+    pub struct OutputArea(HashMap<String, Geometry>, Geometry);
+
+    impl OutputArea {
+        /// Create a new [`OutputArea`] and apply the scaling of the [`Output`]s
+        /// to their geometry.
+        pub fn new_with_scaling(outputs: &[Output]) -> Self {
+            let mut transformed = Self::new_without_scaling(outputs).0;
+
+            for output in outputs {
+                let (x, y, width, height) = transformed.get_mut(&output.name).unwrap();
+                if output.is_scaled() {
+                    // Actual width and height of the output after applying the scaling.
+                    let new_width = (*width as f64 / output.scale) as i32;
+                    let new_height = (*height as f64 / output.scale) as i32;
+
+                    // Translation on the x-axis which needs to be applied to
+                    // all outputs which are right to the output.
+                    let translation_x = if new_width > *width { new_width - *width } else { new_width + *width };
+                    // Translation on the y-axis which needs to be applied to
+                    // all outputs which are below the output.
+                    let translation_y = if new_height > *height { new_height - *height } else { new_height + *height };
+
+                    let output_max_x = *x + *width;
+                    let output_max_y = *y + *height;
+
+                    *width = new_width;
+                    *height = new_height;
+
+                    outputs.iter().filter(|o| o.x > output_max_x).for_each(|output| {
+                        let (x, _, _, _) = transformed.get_mut(&output.name).unwrap();
+                        *x += translation_x;
+                    });
+
+                    outputs.iter().filter(|o| o.y > output_max_y).for_each(|output| {
+                        let (_, y, _, _) = transformed.get_mut(&output.name).unwrap();
+                        *y += translation_y;
+                    });
+                }
+            }
+
+            let geometry = Self::calculate_geometry(transformed.values());
+            Self(transformed, geometry)
+        }
+
+        /// Create a new [`OutputArea`] without applying the scaling of the [`Output`]s
+        /// to their geometry.
+        pub fn new_without_scaling(outputs: &[Output]) -> Self {
+            let outputs = outputs
+                .iter()
+                .map(|output| {
+                    let (width, height) = output.transformed_dimensions();
+                    let &Output { name, x, y, .. } = &output;
+                    (name.clone(), (*x, *y, width, height))
+                })
+                .collect::<HashMap<_, _>>();
+
+            let geometry = Self::calculate_geometry(outputs.values());
+            Self(outputs, geometry)
+        }
+
+        /// Geometry of the rectangular space spanned by all outputs
+        /// of the [`OutputArea`].
+        pub fn geometry(&self) -> Geometry {
+            self.1
+        }
+
+        /// Geometry of an output of the [`OutputArea`].
+        pub fn output(&self, output: &Output) -> Geometry {
+            *self.0.get(&output.name).expect("output should exist")
+        }
+
+        /// Tuple containing the offsets which need to be applied to all
+        /// outputs to have (0,0) at the top-right corner of the [`OutputArea`].
+        pub fn offsets(&self) -> (i32, i32) {
+            let (x, y, _, _) = self.1;
+            (-x, -y)
+        }
+
+        /// Aspect ratio of the rectangular space spanned by all outputs
+        /// of the [`OutputArea`].
+        pub fn aspect_ratio(&self) -> f64 {
+            let (_, _, width, height) = self.1;
+            width as f64 / height as f64
+        }
+
+        /// Get the overall rectangular geometry of the area spanned by
+        /// all outputs of the [`OutputArea`].
+        fn calculate_geometry(outputs: Values<String, Geometry>) -> Geometry {
+            let min_x = outputs.clone().min_by_key(|(x, _, _, _)| x).map(|(x, _, _, _)| *x).unwrap();
+            let min_y = outputs.clone().min_by_key(|(_, y, _, _)| y).map(|(_, y, _, _)| *y).unwrap();
+            let max_x = outputs.clone().max_by_key(|(x, _, width, _)| x + width).map(|(x, _, width, _)| x + width).unwrap();
+            let max_y = outputs.max_by_key(|(_, y, _, height)| y + height).map(|(_, y, _, height)| y + height).unwrap();
+
+            (min_x, min_y, max_x - min_x, max_y - min_y)
+        }
     }
 }
 
 pub struct OutputsView<'a> {
     config: &'a Config,
     manager: Arc<OutputManager>,
-    monitors: Vec<Monitor>,
-    area: MonitorArea,
+    area: OutputArea,
 }
 
 impl<'a> OutputsView<'a> {
@@ -57,71 +134,14 @@ impl<'a> OutputsView<'a> {
         let manager = OutputManager::new(connection)
             .map(Arc::new)
             .map_err(|err| format!("unable to create new output manager from connection: {err}"))?;
-        let mut monitors = Monitors::get()
-            .map(|monitors| monitors.into_iter().filter(|monitor| !monitor.disabled).collect::<Vec<_>>())
-            .map_err(|err| format!("unable to get monitors from hyprland socket: {err}"))?;
 
-        // apply the transformations (rotations) to all monitors
-        monitors.iter_mut().for_each(|m| m.apply_transform());
-        let area = MonitorArea::from(&monitors);
-        let mut view = Self { config, manager, monitors, area };
-        if config.outputs.respect_output_scaling {
-            view.apply_output_scaling();
-            view.area = MonitorArea::from(&view.monitors)
-        }
-        Ok(view)
-    }
+        let area = if config.outputs.respect_output_scaling {
+            OutputArea::new_with_scaling(&manager.outputs)
+        } else {
+            OutputArea::new_without_scaling(&manager.outputs)
+        };
 
-    fn apply_output_scaling(&mut self) {
-        // very ugly code to do some very ugly things
-        let mut translations = HashMap::new();
-        self.monitors.iter().for_each(|m| {
-            translations.insert(m.id, 0);
-        });
-
-        self.monitors.sort_by_key(|a| a.x);
-        let copy = self.monitors.clone();
-        self.monitors.iter_mut().for_each(|m| {
-            translations.insert(m.id, 0);
-            if m.scale != 1.0 {
-                let new_width = (m.width as f32 / m.scale) as u16;
-                let translation =
-                    if new_width > m.width { (new_width - m.width) as i32 } else { -((m.width - new_width) as i32) };
-                copy.iter()
-                    .filter(|o| o.x > m.x + m.width as i32 && (o.y <= m.y + m.height as i32 && o.y + o.height as i32 >= m.y))
-                    .for_each(|o| {
-                        if let Some(entry) = translations.get_mut(&o.id) {
-                            *entry += translation;
-                        }
-                    });
-                m.width = new_width;
-            }
-        });
-        translations.iter_mut().for_each(|(key, value)| {
-            let _ = self.monitors.iter_mut().find(|m| m.id == *key).map(|m| m.x += *value);
-            *value = 0;
-        });
-
-        self.monitors.sort_by_key(|a| a.y);
-        let copy = self.monitors.clone();
-        self.monitors.iter_mut().for_each(|m| {
-            if m.scale != 1.0 {
-                let new_height = (m.height as f32 / m.scale) as u16;
-                let translation =
-                    if new_height > m.height { (new_height - m.height) as i32 } else { -((m.height - new_height) as i32) };
-                copy.iter()
-                    .filter(|o| o.y > m.y + m.height as i32 && (o.x <= m.x + m.width as i32 && o.x + o.width as i32 >= m.x))
-                    .for_each(|o| {
-                        if let Some(entry) = translations.get_mut(&o.id) {
-                            *entry += translation;
-                        }
-                    });
-                m.height = new_height;
-            }
-        });
-        translations.iter().for_each(|(key, value)| {
-            let _ = self.monitors.iter_mut().find(|m| m.id == *key).map(|m| m.y += *value);
-        });
+        Ok(OutputsView { config, manager, area })
     }
 }
 
@@ -131,18 +151,11 @@ impl View for OutputsView<'_> {
         let scrolled_window =
             ScrolledWindow::builder().child(&container).css_classes([self.config.classes.notebook_page.as_str()]).build();
 
-        self.manager.outputs.iter().for_each(|(wl_output, output)| {
-            let name = match &output.name {
-                Some(name) => name,
-                None => return log::error!("output {output:?} does not have a name"),
-            };
-            let Some(monitor) = self.monitors.iter().find(|m| m.name.eq(name)).cloned() else {
-                return log::error!("output {name} does not exist on hyprland");
-            };
-            let output_card = OutputCard::new(&monitor, self.config, wl_output, &self.area, self.manager.clone());
+        self.manager.outputs.iter().for_each(|output| {
+            let output_card = OutputCard::new(output, self.config, &self.area, self.manager.clone());
             let card = match output_card.build() {
                 Ok(card) => card,
-                Err(err) => return log::error!("unable to build output card for output {name}: {err}"),
+                Err(err) => return log::error!("unable to build output card for output {}: {err}", output.name),
             };
             output_card.append_on_allocation(&container, &card);
         });
@@ -156,22 +169,15 @@ impl View for OutputsView<'_> {
 }
 
 struct OutputCard<'a> {
-    monitor: &'a Monitor,
+    output: &'a Output,
     config: &'a Config,
     manager: Arc<OutputManager>,
-    output: &'a WlOutput,
-    area: &'a MonitorArea,
+    area: &'a OutputArea,
 }
 
 impl<'a> OutputCard<'a> {
-    fn new(
-        monitor: &'a Monitor,
-        config: &'a Config,
-        output: &'a WlOutput,
-        area: &'a MonitorArea,
-        manager: Arc<OutputManager>,
-    ) -> Self {
-        Self { monitor, config, output, manager, area }
+    fn new(output: &'a Output, config: &'a Config, area: &'a OutputArea, manager: Arc<OutputManager>) -> Self {
+        Self { output, config, manager, area }
     }
 
     pub fn build(&self) -> Result<Button, String> {
@@ -206,16 +212,19 @@ impl<'a> OutputCard<'a> {
             .css_classes([self.config.classes.image_card.as_str(), self.config.classes.image_card_loading.as_str()])
             .build();
 
-        if self.area.min_x != self.monitor.x {
+        let (area_min_x, area_min_y, area_width, area_height) = self.area.geometry();
+        let (x, y, width, height) = self.area.output(self.output);
+
+        if area_min_x != x {
             container.set_margin_start(self.config.outputs.spacing as i32);
         }
-        if self.area.max_x != self.monitor.x + self.monitor.width as i32 {
+        if area_min_x + area_width != x + width {
             container.set_margin_end(self.config.outputs.spacing as i32);
         }
-        if self.area.min_y != self.monitor.y {
+        if area_min_y != y {
             container.set_margin_top(self.config.outputs.spacing as i32);
         }
-        if self.area.max_y != self.monitor.y + self.monitor.height as i32 {
+        if area_min_y + area_height != y + height {
             container.set_margin_bottom(self.config.outputs.spacing as i32);
         }
         container.append(picture);
@@ -223,7 +232,7 @@ impl<'a> OutputCard<'a> {
         if self.config.outputs.show_label {
             let label = Label::builder()
                 .max_width_chars(1)
-                .label(&self.monitor.name)
+                .label(&self.output.name)
                 .ellipsize(gtk4::pango::EllipsizeMode::End)
                 .single_line_mode(true)
                 .css_classes([self.config.classes.image_label.as_str()])
@@ -242,7 +251,7 @@ impl<'a> OutputCard<'a> {
         let gesture = GestureClick::new();
         gesture.set_propagation_phase(gtk4::PropagationPhase::Capture);
         let clicks = self.config.windows.clicks;
-        let name = &self.monitor.name;
+        let name = &self.output.name;
         gesture.connect_released(clone!(
             #[strong]
             name,
@@ -270,9 +279,14 @@ impl<'a> OutputCard<'a> {
     }
 
     pub fn append_on_allocation(&self, container: &Fixed, card: &Button) {
-        let &MonitorArea { aspect_ratio, width: monitors_width, height: monitors_height, offset_x, offset_y, .. } =
-            self.area;
-        let &Monitor { height, width, x, y, .. } = self.monitor;
+        let (_, _, area_width, area_height) = self.area.geometry();
+        let (x, y, width, height) = self.area.output(self.output);
+        let (offset_x, offset_y) = self.area.offsets();
+        let area_aspect_ratio = self.area.aspect_ratio();
+
+        let (area_width, area_height) = (area_width as f64, area_height as f64);
+        let (x, y, width, height) = (x as f64, y as f64, width as f64, height as f64);
+        let (offset_x, offset_y) = (offset_x as f64, offset_y as f64);
 
         container.add_tick_callback(clone!(
             #[strong]
@@ -283,34 +297,32 @@ impl<'a> OutputCard<'a> {
                 if allocation.width() == 0 || allocation.height() == 0 {
                     glib::ControlFlow::Continue
                 } else {
-                    let container_aspect_ratio = allocation.width() as f64 / allocation.height() as f64;
-                    let monitors_width_f = monitors_width as f64;
-                    let monitors_height_f = monitors_height as f64;
-                    let transform_x = |x: i32| {
-                        if aspect_ratio > container_aspect_ratio {
-                            (x as f64 / monitors_width_f) * allocation.width() as f64
-                        } else {
-                            (x as f64 / monitors_width_f) * allocation.height() as f64 * aspect_ratio
-                        }
-                    };
-                    let transform_y = |y: i32| {
-                        if aspect_ratio > container_aspect_ratio {
-                            (y as f64 / monitors_height_f) * allocation.width() as f64 / aspect_ratio
-                        } else {
-                            (y as f64 / monitors_height_f) * allocation.height() as f64
-                        }
+                    let (allocation_width, allocation_height) = (allocation.width() as f64, allocation.height() as f64);
+                    let aspect_ratio = allocation_width / allocation_height;
+
+                    // Factors to transform output area coordinates to card coordinates.
+                    let (transform_x, transform_y) = if area_aspect_ratio > aspect_ratio {
+                        let transform_x = allocation_width / area_width;
+                        let transform_y = (allocation_width / area_aspect_ratio) / area_height;
+                        (transform_x, transform_y)
+                    } else {
+                        let transform_x = allocation_width * area_aspect_ratio / area_width;
+                        let transform_y = allocation_height / area_height;
+                        (transform_x, transform_y)
                     };
 
-                    card.set_width_request(transform_x(width as i32) as i32);
-                    card.set_height_request(transform_y(height as i32) as i32);
+                    // Apply transformed dimensions to the card.
+                    card.set_width_request((width * transform_x) as i32);
+                    card.set_height_request((height * transform_y) as i32);
 
-                    let transformed_monitor_width = transform_x(monitors_width);
-                    let transformed_monitor_height = transform_x(monitors_height);
+                    let px_offset_x = (allocation_width - area_width * transform_x).max(0.0) / 2.0;
+                    let px_offset_y = (allocation_height - area_height * transform_y).max(0.0) / 2.0;
 
-                    let px_offset_x = (allocation.width() as f64 - transformed_monitor_width).max(0.0) / 2.0;
-                    let px_offset_y = (allocation.height() as f64 - transformed_monitor_height).max(0.0) / 2.0;
-
-                    container.put(&card, px_offset_x + transform_x(offset_x + x), px_offset_y + transform_y(offset_y + y));
+                    container.put(
+                        &card,
+                        px_offset_x + (offset_x + x) * transform_x,
+                        px_offset_y + (offset_y + y) * transform_y,
+                    );
                     glib::ControlFlow::Break
                 }
             }
@@ -320,7 +332,7 @@ impl<'a> OutputCard<'a> {
     fn request_frame(&self, tx: Sender<Image>) {
         let resize_size = self.config.image.resize_size;
         let manager = self.manager.clone();
-        let name = &self.monitor.name;
+        let name = &self.output.name;
         let output = self.output;
 
         tokio::spawn(clone!(
@@ -331,7 +343,7 @@ impl<'a> OutputCard<'a> {
             #[to_owned]
             manager,
             async move {
-                let buffer = match manager.to_owned().capture_output(&output) {
+                let buffer = match manager.to_owned().capture_output(&output.wl_output) {
                     Ok(buffer) => buffer,
                     Err(err) => return log::error!("unable to capture output {name}: {err}"),
                 };
@@ -355,7 +367,7 @@ impl<'a> OutputCard<'a> {
 
     fn update_frame_lazily(&self, card: Box, picture: Picture, rx: Receiver<Image>) {
         let loading_class = self.config.classes.image_card_loading.clone();
-        let name = self.monitor.name.clone();
+        let name = self.output.name.clone();
         glib::spawn_future_local(async move {
             let img = match rx.await {
                 Ok(img) => img,
