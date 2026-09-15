@@ -17,7 +17,7 @@ use crate::Frame;
 use crate::buffer::Buffer;
 use crate::error::Error;
 
-#[derive(Clone, Builder)]
+#[derive(Clone, Debug, Builder)]
 pub struct Output {
     /// Unique name of the output.
     pub name: String,
