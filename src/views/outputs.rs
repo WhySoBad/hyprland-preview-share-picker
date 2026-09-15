@@ -135,6 +135,8 @@ impl<'a> OutputsView<'a> {
             .map(Arc::new)
             .map_err(|err| format!("unable to create new output manager from connection: {err}"))?;
 
+        log::debug!("got outputs {:#?}", manager.outputs);
+
         let area = if config.outputs.respect_output_scaling {
             OutputArea::new_with_scaling(&manager.outputs)
         } else {
