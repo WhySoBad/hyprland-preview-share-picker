@@ -33,36 +33,67 @@ mod area {
         pub fn new_with_scaling(outputs: &[Output]) -> Self {
             let mut transformed = Self::new_without_scaling(outputs).0;
 
-            for output in outputs {
-                let (x, y, width, height) = transformed.get_mut(&output.name).unwrap();
+            // First, sort all outputs by ascending x-coordinate and apply the
+            // transformations on the x-axis to them. If multiple outputs overlap,
+            // the one which is further on the right is moved further to the right
+            // such that the outputs no longer overlap.
+            let mut sorted_by_x = outputs.iter().collect::<Vec<_>>();
+            sorted_by_x.sort_by_key(|o| o.x);
+
+            let mut translations_x = HashMap::<String, i32>::new();
+            for output in &sorted_by_x {
                 if output.is_scaled() {
-                    // Actual width and height of the output after applying the scaling.
-                    let new_width = (*width as f64 / output.scale) as i32;
-                    let new_height = (*height as f64 / output.scale) as i32;
+                    let (_, _, width, height) = transformed[&output.name];
+                    let new_width = (width as f64 / output.scale) as i32;
+                    let translation_x = new_width - width;
 
-                    // Translation on the x-axis which needs to be applied to
-                    // all outputs which are right to the output.
-                    let translation_x = if new_width > *width { new_width - *width } else { new_width + *width };
-                    // Translation on the y-axis which needs to be applied to
-                    // all outputs which are below the output.
-                    let translation_y = if new_height > *height { new_height - *height } else { new_height + *height };
+                    for other in &sorted_by_x {
+                        let (_, other_y, _, other_height) = transformed[&other.name];
+                        let is_to_the_right = other.x >= output.x + width;
+                        let overlaps_y = other_y <= output.y + height && other_y + other_height >= output.y;
 
-                    let output_max_x = *x + *width;
-                    let output_max_y = *y + *height;
+                        if is_to_the_right && overlaps_y {
+                            *translations_x.entry(other.name.clone()).or_default() += translation_x;
+                        }
+                    }
 
-                    *width = new_width;
-                    *height = new_height;
-
-                    outputs.iter().filter(|o| o.x > output_max_x).for_each(|output| {
-                        let (x, _, _, _) = transformed.get_mut(&output.name).unwrap();
-                        *x += translation_x;
-                    });
-
-                    outputs.iter().filter(|o| o.y > output_max_y).for_each(|output| {
-                        let (_, y, _, _) = transformed.get_mut(&output.name).unwrap();
-                        *y += translation_y;
-                    });
+                    transformed.get_mut(&output.name).unwrap().2 = new_width;
                 }
+            }
+            for (name, shift) in translations_x {
+                transformed.get_mut(&name).unwrap().0 += shift;
+            }
+
+            // Repeat the same thing for the y-axis. Meaning, all outputs
+            // are sorted by ascending y-coordinate and then their transformations
+            // are applied on the y-axis. If multiple outputs overlap, the one which
+            // is further down is moved further down such that the outputs no longer
+            // overlap.
+            let mut sorted_by_y = outputs.iter().collect::<Vec<_>>();
+            sorted_by_y.sort_by_key(|o| o.y);
+
+            let mut translations_y = HashMap::<String, i32>::new();
+            for output in &sorted_by_y {
+                if output.is_scaled() {
+                    let (_, _, width, height) = transformed[&output.name];
+                    let new_height = (height as f64 / output.scale) as i32;
+                    let translation_y = new_height - height;
+
+                    for other in &sorted_by_y {
+                        let (other_x, _, other_width, _) = transformed[&other.name];
+                        let is_below = other.y >= output.y + height;
+                        let overlaps_x = other_x <= output.x + width && other_x + other_width >= output.x;
+
+                        if is_below && overlaps_x {
+                            *translations_y.entry(other.name.clone()).or_default() += translation_y;
+                        }
+                    }
+
+                    transformed.get_mut(&output.name).unwrap().3 = new_height;
+                }
+            }
+            for (name, shift) in translations_y {
+                transformed.get_mut(&name).unwrap().1 += shift;
             }
 
             let geometry = Self::calculate_geometry(transformed.values());
@@ -101,13 +132,6 @@ mod area {
         pub fn offsets(&self) -> (i32, i32) {
             let (x, y, _, _) = self.1;
             (-x, -y)
-        }
-
-        /// Aspect ratio of the rectangular space spanned by all outputs
-        /// of the [`OutputArea`].
-        pub fn aspect_ratio(&self) -> f64 {
-            let (_, _, width, height) = self.1;
-            width as f64 / height as f64
         }
 
         /// Get the overall rectangular geometry of the area spanned by
@@ -284,7 +308,6 @@ impl<'a> OutputCard<'a> {
         let (_, _, area_width, area_height) = self.area.geometry();
         let (x, y, width, height) = self.area.output(self.output);
         let (offset_x, offset_y) = self.area.offsets();
-        let area_aspect_ratio = self.area.aspect_ratio();
 
         let (area_width, area_height) = (area_width as f64, area_height as f64);
         let (x, y, width, height) = (x as f64, y as f64, width as f64, height as f64);
@@ -300,31 +323,19 @@ impl<'a> OutputCard<'a> {
                     glib::ControlFlow::Continue
                 } else {
                     let (allocation_width, allocation_height) = (allocation.width() as f64, allocation.height() as f64);
-                    let aspect_ratio = allocation_width / allocation_height;
 
-                    // Factors to transform output area coordinates to card coordinates.
-                    let (transform_x, transform_y) = if area_aspect_ratio > aspect_ratio {
-                        let transform_x = allocation_width / area_width;
-                        let transform_y = (allocation_width / area_aspect_ratio) / area_height;
-                        (transform_x, transform_y)
-                    } else {
-                        let transform_x = allocation_width * area_aspect_ratio / area_width;
-                        let transform_y = allocation_height / area_height;
-                        (transform_x, transform_y)
-                    };
+                    // Uniform scale factor that fits the area inside the container
+                    // without stretching.
+                    let scale = (allocation_width / area_width).min(allocation_height / area_height);
 
                     // Apply transformed dimensions to the card.
-                    card.set_width_request((width * transform_x) as i32);
-                    card.set_height_request((height * transform_y) as i32);
+                    card.set_width_request((width * scale) as i32);
+                    card.set_height_request((height * scale) as i32);
 
-                    let px_offset_x = (allocation_width - area_width * transform_x).max(0.0) / 2.0;
-                    let px_offset_y = (allocation_height - area_height * transform_y).max(0.0) / 2.0;
+                    let px_offset_x = (allocation_width - area_width * scale).max(0.0) / 2.0;
+                    let px_offset_y = (allocation_height - area_height * scale).max(0.0) / 2.0;
 
-                    container.put(
-                        &card,
-                        px_offset_x + (offset_x + x) * transform_x,
-                        px_offset_y + (offset_y + y) * transform_y,
-                    );
+                    container.put(&card, px_offset_x + (offset_x + x) * scale, px_offset_y + (offset_y + y) * scale);
                     glib::ControlFlow::Break
                 }
             }
