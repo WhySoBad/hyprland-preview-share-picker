@@ -12,7 +12,6 @@ mod app;
 mod cli;
 mod config;
 mod image;
-mod util;
 mod views;
 
 #[tokio::main]
@@ -43,7 +42,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             log::debug!("XDPH_WINDOW_SHARING_LIST = {toplevel_sharing_list}");
             let toplevels = Toplevel::parse_list(&toplevel_sharing_list);
             log::debug!("using config: {config:#?}");
-
             log::debug!("got toplevels {toplevels:#?}");
 
             let app = App::build(cli.inspect, config, toplevels, cli.allow_token_by_default);
