@@ -1,6 +1,3 @@
-use std::sync::Arc;
-
-use glib::clone;
 use glib::variant::ToVariant;
 use gtk4::prelude::{BoxExt, EventControllerExt, FlowBoxChildExt, WidgetExt};
 use gtk4::{Box, FlowBox, FlowBoxChild, GestureClick, Label, Picture, ScrolledWindow};
@@ -17,16 +14,13 @@ use crate::image::ImageExt;
 pub struct WindowsView<'a> {
     toplevels: &'a [Toplevel],
     config: &'a Config,
-    manager: Arc<FrameManager>,
 }
 
 impl<'a> WindowsView<'a> {
     pub fn new(connection: &'a Connection, toplevels: &'a [Toplevel], config: &'a Config) -> Result<Self, String> {
-        let manager = FrameManager::new(connection)
-            .map(Arc::new)
-            .map_err(|err| format!("unable to create new frame manager from connection: {err}"))?;
+        FrameManager::new(connection).map_err(|err| format!("unable to create new frame manager from connection: {err}"))?;
 
-        Ok(Self { toplevels, config, manager })
+        Ok(Self { toplevels, config })
     }
 }
 
@@ -48,7 +42,7 @@ impl View for WindowsView<'_> {
             log::debug!("attempting to capture frame for toplevel {}", toplevel.id);
             log::debug!("toplevel = {toplevel:?}");
 
-            let window_card = WindowCard::new(toplevel, self.config, self.manager.clone());
+            let window_card = WindowCard::new(toplevel, self.config);
             let card = match window_card.build() {
                 Ok(card) => card,
                 Err(err) => return log::error!("unable to build window card for toplevel {}: {err}", toplevel.id),
@@ -72,12 +66,11 @@ impl View for WindowsView<'_> {
 struct WindowCard<'a> {
     toplevel: &'a Toplevel,
     config: &'a Config,
-    manager: Arc<FrameManager>,
 }
 
 impl<'a> WindowCard<'a> {
-    pub fn new(toplevel: &'a Toplevel, config: &'a Config, manager: Arc<FrameManager>) -> Self {
-        WindowCard { toplevel, config, manager }
+    pub fn new(toplevel: &'a Toplevel, config: &'a Config) -> Self {
+        WindowCard { toplevel, config }
     }
 
     pub fn build(self) -> Result<FlowBoxChild, String> {
@@ -154,32 +147,35 @@ impl<'a> WindowCard<'a> {
         let handle = self.toplevel.window_address;
         let id = self.toplevel.id;
         let resize_size = self.config.image.resize_size;
-        let manager = self.manager.clone();
 
-        tokio::spawn(clone!(
-            #[to_owned]
-            manager,
-            async move {
-                let buffer = match manager.to_owned().capture_frame(handle) {
-                    Ok(buffer) => buffer,
-                    Err(err) => return log::error!("unable to capture frame for toplevel {id}: {err}"),
-                };
-                let mut img = match Image::new(buffer) {
-                    Ok(img) => match img.into_rgb() {
-                        Ok(img) => img,
-                        Err(err) => return log::error!("unable to convert Xrgb image to rgb: {err}"),
-                    },
-                    Err(err) => return log::error!("unable to create image from buffer: {err}"),
-                };
+        tokio::spawn(async move {
+            let connection = match Connection::connect_to_env() {
+                Ok(connection) => connection,
+                Err(err) => return log::error!("unable to connect to wayland for toplevel {id}: {err}"),
+            };
+            let mut manager = match FrameManager::new(&connection) {
+                Ok(manager) => manager,
+                Err(err) => return log::error!("unable to create frame manager for toplevel {id}: {err}"),
+            };
+            let buffer = match manager.capture_frame(handle) {
+                Ok(buffer) => buffer,
+                Err(err) => return log::error!("unable to capture frame for toplevel {id}: {err}"),
+            };
+            let mut img = match Image::new(buffer) {
+                Ok(img) => match img.into_rgb() {
+                    Ok(img) => img,
+                    Err(err) => return log::error!("unable to convert Xrgb image to rgb: {err}"),
+                },
+                Err(err) => return log::error!("unable to create image from buffer: {err}"),
+            };
 
-                img.resize_to_fit(resize_size);
+            img.resize_to_fit(resize_size);
 
-                if tx.send(img).is_err() {
-                    log::error!("unable to transmit image for toplevel {id}: channel is closed");
-                };
-                log::debug!("transmitted image for toplevel {id}");
-            }
-        ));
+            if tx.send(img).is_err() {
+                log::error!("unable to transmit image for toplevel {id}: channel is closed");
+            };
+            log::debug!("transmitted image for toplevel {id}");
+        });
     }
 
     fn update_frame_lazily(&self, card: Box, picture: Picture, rx: Receiver<Image>) {
