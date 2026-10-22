@@ -32,9 +32,16 @@ impl Buffer {
         handle: &QueueHandle<T>,
         udata: K,
     ) -> Result<Self, Error> {
+        let size = stride as u64 * height as u64;
+        if width == 0 || height == 0 || stride < width * 4 || size > i32::MAX as u64 {
+            return Err(Error::BufferCreate(
+                format!("unsupported buffer size {width}x{height} with stride {stride}").into(),
+            ));
+        }
+        log::debug!("creating {width}x{height} buffer with stride {stride} and format {format:?}");
         let mfd = memfd::MemfdOptions::default().create("buffer").map_err(|err| Error::BufferCreate(err.into()))?;
-        mfd.as_file().set_len((width * height * 4) as u64).map_err(|err| Error::BufferCreate(err.into()))?;
-        let pool = shm.create_pool(mfd.as_file().as_fd(), (width * height * 4) as i32, handle, udata.clone());
+        mfd.as_file().set_len(size).map_err(|err| Error::BufferCreate(err.into()))?;
+        let pool = shm.create_pool(mfd.as_file().as_fd(), size as i32, handle, udata.clone());
         let buffer = pool.create_buffer(0, width as i32, height as i32, stride as i32, format, handle, udata);
 
         pool.destroy();
@@ -46,7 +53,11 @@ impl Buffer {
         // let mut file = unsafe { File::from_raw_fd(self.fd) };
         let mut bytes = Vec::new();
         self.fd.as_file().read_to_end(&mut bytes).map_err(|err| Error::BufferRead(err))?;
-        Ok(bytes)
+        let row = self.width as usize * 4;
+        if self.stride as usize == row {
+            return Ok(bytes);
+        }
+        Ok(bytes.chunks_exact(self.stride as usize).flat_map(|line| line[..row].iter().copied()).collect())
     }
 
     /// clear the wayland buffer and remove the temporary file
