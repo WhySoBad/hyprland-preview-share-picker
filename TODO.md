@@ -15,4 +15,9 @@
 
 - [ ] Support multiple buffer formats (not only Xrgb8888)
 
+- [ ] Use the new image-copy-capture-v1 (https://wayland.app/protocols/ext-image-copy-capture-v1), ext-image-capture-source-v1 (https://wayland.app/protocols/ext-image-capture-source-v1) and hyprland-workspace-image-capture-source-v1 (https://wayland.app/protocols/hyprland-workspace-image-capture-source-v1) protocols for the capturing
+  - [ ] Support workspace capturing
+
+- [ ] Use the monitors passed by XDPH_OUTPUT_SHARING_LIST instead of manually filtering the available monitors
+
 - [ ] Switch to using dma buffers
