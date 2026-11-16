@@ -76,7 +76,7 @@ pub struct OutputManager {
     output_manager: Option<ZwlrOutputManagerV1>,
     output_manager_done: bool,
     pub outputs: Vec<Output>,
-    pending_outputs: Vec<(WlOutput, Option<String>)>,
+    pending_outputs: Vec<(WlOutput, Option<String>, Option<(i32, i32)>)>,
     pending_heads: Vec<(ZwlrOutputHeadV1, OutputBuilder, Option<ZwlrOutputModeV1>)>,
     modes: Vec<(ZwlrOutputModeV1, i32, i32)>,
     connection: Connection,
@@ -202,7 +202,7 @@ impl OutputManager {
             return;
         };
 
-        self.pending_outputs.retain(|(wl_output, name)| {
+        self.pending_outputs.retain(|(wl_output, name, wl_size)| {
             let Some(name) = name else { return true };
             let Some(idx) = self
                 .pending_heads
@@ -211,16 +211,20 @@ impl OutputManager {
             else {
                 return true;
             };
+
             let (_, _, current_mode) = &self.pending_heads[idx];
-            let Some((_, width, height)) =
-                current_mode.as_ref().and_then(|current_mode| self.modes.iter().find(|(mode, _, _)| mode == current_mode))
-            else {
+
+            let current_size = current_mode.as_ref().and_then(|current_mode| {
+                self.modes.iter().find(|(mode, _, _)| mode == current_mode).map(|(_, width, height)| (*width, *height))
+            });
+
+            let Some((width, height)) = current_size.or(*wl_size) else {
                 return true;
             };
 
             let (_, mut output, _) = self.pending_heads.remove(idx);
-            output.width(*width);
-            output.height(*height);
+            output.width(width);
+            output.height(height);
             output.wl_output(wl_output.clone());
 
             self.outputs.push(output.build().expect("all fields should be populated"));
@@ -255,7 +259,7 @@ impl Dispatch<wl_registry::WlRegistry, ()> for OutputManager {
                 }
                 "wl_output" => {
                     let output: WlOutput = registry.bind(name, version, handle, ());
-                    state.pending_outputs.push((output, None));
+                    state.pending_outputs.push((output, None, None));
                 }
                 _ => {}
             },
@@ -273,10 +277,19 @@ impl Dispatch<wl_output::WlOutput, ()> for OutputManager {
         _conn: &wayland_client::Connection,
         _qhandle: &wayland_client::QueueHandle<Self>,
     ) {
-        let Some((_, name_opt)) = state.pending_outputs.iter_mut().find(|(output, _)| output == proxy) else { return };
+        let Some((_, name_opt, size_opt)) = state.pending_outputs.iter_mut().find(|(output, _, _)| output == proxy) else {
+            return;
+        };
 
         match event {
             wl_output::Event::Name { name } => *name_opt = Some(name),
+            wl_output::Event::Mode { flags, width, height, .. } => {
+                if let Ok(flags) = flags.into_result()
+                    && flags.contains(wl_output::Mode::Current)
+                {
+                    *size_opt = Some((width, height))
+                }
+            }
             wl_output::Event::Done => state.build_outputs(),
             _ => {}
         }
