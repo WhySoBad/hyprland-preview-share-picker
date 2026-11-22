@@ -175,6 +175,8 @@ pub struct ClassesConfig {
     pub notebook_page: String,
     /// class applied to the button which triggers the region selection
     pub region_button: String,
+    /// class applied to the region preset buttons, in addition to the region button class
+    pub region_preset_button: String,
     /// class applied to the button containing the session restore checkbox and label
     pub restore_button: String,
 }
@@ -191,6 +193,7 @@ impl Default for ClassesConfig {
             tab_label: String::from("tab-label"),
             notebook_page: String::from("page"),
             region_button: String::from("region-button"),
+            region_preset_button: String::from("region-preset-button"),
             restore_button: String::from("restore-button"),
         }
     }
@@ -208,12 +211,29 @@ pub struct RegionConfig {
     /// x and y have to be relative to the top left corner of the output,
     /// not to the origin of the monitor layout
     pub command: String,
+    /// fixed regions shown as buttons next to the region selection button
+    ///
+    /// clicking a preset shares its region right away, without running the region command
+    pub presets: Vec<RegionPreset>,
 }
 
 impl Default for RegionConfig {
     fn default() -> Self {
-        Self { command: String::from("slurp -f '%o@%X,%Y,%W,%H'") }
+        Self { command: String::from("slurp -f '%o@%X,%Y,%W,%H'"), presets: Vec::new() }
     }
+}
+
+#[derive(Deserialize, Debug, Clone, JsonSchema)]
+#[schemars(rename = "Region preset")]
+pub struct RegionPreset {
+    /// label of the preset button
+    pub name: String,
+    /// region in the same format as the output of the region command:
+    /// <output>@<x>,<y>,<w>,<h> (e.g. DP-1@1280,0,2560,1440)
+    ///
+    /// x and y have to be relative to the top left corner of the output,
+    /// not to the origin of the monitor layout
+    pub region: String,
 }
 
 #[derive(Deserialize, Debug, Clone, JsonSchema)]

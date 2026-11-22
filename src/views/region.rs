@@ -6,12 +6,13 @@ use gtk4::{Box, Button, Label, ScrolledWindow};
 use regex::Regex;
 
 use super::View;
-use crate::config::Config;
+use crate::config::{Config, RegionPreset};
 
 pub struct RegionView<'a> {
     config: &'a Config,
     regex: Regex,
     args: Vec<String>,
+    presets: Vec<RegionPreset>,
 }
 
 impl<'a> RegionView<'a> {
@@ -20,7 +21,44 @@ impl<'a> RegionView<'a> {
             .ok_or(format!("received invalid region command: {}", config.region.command))?;
         let regex = Regex::new(r"^.+@-?\d+,-?\d+,\d+,\d+$").map_err(|err| format!("received invalid regex: {err}"))?;
 
-        Ok(Self { config, regex, args })
+        let presets = config
+            .region
+            .presets
+            .iter()
+            .filter(|preset| {
+                let valid = regex.is_match(preset.region.trim());
+                if !valid {
+                    log::warn!(
+                        "skipping region preset '{}' with region '{}': expected '<output>@<x>,<y>,<w>,<h>'",
+                        preset.name,
+                        preset.region
+                    );
+                }
+                valid
+            })
+            .map(|preset| RegionPreset { name: preset.name.clone(), region: preset.region.trim().to_string() })
+            .collect();
+
+        Ok(Self { config, regex, args, presets })
+    }
+
+    fn build_preset_button(&self, preset: &RegionPreset) -> Button {
+        let button = Button::builder()
+            .label(preset.name.as_str())
+            .tooltip_text(preset.region.as_str())
+            .css_classes([self.config.classes.region_button.as_str(), self.config.classes.region_preset_button.as_str()])
+            .build();
+
+        let region = preset.region.clone();
+        button.connect_clicked(move |btn| {
+            if let Some(root) = btn.root() {
+                log::info!("using region preset {region}");
+                root.activate_action("win.select", Some(&format!("region:{region}").to_variant()))
+                    .expect("select action should be registered on the window");
+            }
+        });
+
+        button
     }
 }
 
@@ -28,7 +66,8 @@ impl View for RegionView<'_> {
     fn build(&self) -> ScrolledWindow {
         let container = Box::builder()
             .css_classes([self.config.classes.notebook_page.as_str()])
-            .orientation(gtk4::Orientation::Vertical)
+            .orientation(gtk4::Orientation::Horizontal)
+            .spacing(6)
             .halign(gtk4::Align::Center)
             .valign(gtk4::Align::Center)
             .build();
@@ -37,7 +76,11 @@ impl View for RegionView<'_> {
         let button =
             Button::builder().label("Select region").css_classes([self.config.classes.region_button.as_str()]).build();
 
-        container.insert_child_after(&button, Option::<&Box>::None);
+        container.append(&button);
+
+        for preset in &self.presets {
+            container.append(&self.build_preset_button(preset));
+        }
 
         let regex = self.regex.clone();
         let args = self.args.clone();
