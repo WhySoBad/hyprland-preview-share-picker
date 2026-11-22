@@ -2,7 +2,7 @@ use std::process::Command;
 
 use glib::variant::ToVariant;
 use gtk4::prelude::{BoxExt, ButtonExt, WidgetExt};
-use gtk4::{Box, Button, Label, ScrolledWindow};
+use gtk4::{Box, Button, FlowBox, Label, ScrolledWindow, Separator};
 use regex::Regex;
 
 use super::View;
@@ -63,6 +63,14 @@ impl<'a> RegionView<'a> {
 
         button
     }
+
+    /// Append a section heading, unless it is configured empty.
+    fn append_heading(&self, container: &Box, text: &str) {
+        if !text.is_empty() {
+            container
+                .append(&Label::builder().label(text).css_classes([self.config.classes.region_heading.as_str()]).build());
+        }
+    }
 }
 
 /// Run the presets command and parse its `<name><TAB><region>` lines.
@@ -106,8 +114,8 @@ impl View for RegionView<'_> {
     fn build(&self) -> ScrolledWindow {
         let container = Box::builder()
             .css_classes([self.config.classes.notebook_page.as_str()])
-            .orientation(gtk4::Orientation::Horizontal)
-            .spacing(6)
+            .orientation(gtk4::Orientation::Vertical)
+            .spacing(12)
             .halign(gtk4::Align::Center)
             .valign(gtk4::Align::Center)
             .build();
@@ -116,11 +124,38 @@ impl View for RegionView<'_> {
         let button =
             Button::builder().label("Select region").css_classes([self.config.classes.region_button.as_str()]).build();
 
-        container.append(&button);
+        // Without presets the page is only the region selection button, as before.
+        if !self.presets.is_empty() {
+            self.append_heading(&container, &self.config.region.presets_heading);
 
-        for preset in &self.presets {
-            container.append(&self.build_preset_button(preset));
+            let presets = FlowBox::builder()
+                .selection_mode(gtk4::SelectionMode::None)
+                .column_spacing(6)
+                .row_spacing(6)
+                .halign(gtk4::Align::Center)
+                .build();
+            for preset in &self.presets {
+                let preset_button = self.build_preset_button(preset);
+                presets.insert(&preset_button, -1);
+                // Keyboard focus goes straight to the buttons, not to their flow box cells.
+                if let Some(cell) = preset_button.parent() {
+                    cell.set_focusable(false);
+                }
+            }
+            container.append(&presets);
+
+            container.append(
+                &Separator::builder()
+                    .orientation(gtk4::Orientation::Horizontal)
+                    .css_classes([self.config.classes.region_separator.as_str()])
+                    .build(),
+            );
+
+            self.append_heading(&container, &self.config.region.selection_heading);
+            button.set_halign(gtk4::Align::Center);
         }
+
+        container.append(&button);
 
         let regex = self.regex.clone();
         let args = self.args.clone();

@@ -177,6 +177,10 @@ pub struct ClassesConfig {
     pub region_button: String,
     /// class applied to the region preset buttons, in addition to the region button class
     pub region_preset_button: String,
+    /// class applied to the section headings on the region page
+    pub region_heading: String,
+    /// class applied to the separator between the presets and the region selection on the region page
+    pub region_separator: String,
     /// class applied to the button containing the session restore checkbox and label
     pub restore_button: String,
 }
@@ -194,6 +198,8 @@ impl Default for ClassesConfig {
             notebook_page: String::from("page"),
             region_button: String::from("region-button"),
             region_preset_button: String::from("region-preset-button"),
+            region_heading: String::from("region-heading"),
+            region_separator: String::from("region-separator"),
             restore_button: String::from("restore-button"),
         }
     }
@@ -220,11 +226,25 @@ pub struct RegionConfig {
     /// one preset per line in the format <name><TAB><region> (e.g. "Centre 16:9\tDP-1@1280,0,2560,1440"),
     /// shown after the presets from the `presets` list. use it to keep the presets in a file of your own
     pub presets_command: Option<String>,
+    /// heading above the preset buttons, shown only when there are presets
+    ///
+    /// an empty string hides the heading
+    pub presets_heading: String,
+    /// heading above the region selection button, shown only when there are presets
+    ///
+    /// an empty string hides the heading
+    pub selection_heading: String,
 }
 
 impl Default for RegionConfig {
     fn default() -> Self {
-        Self { command: String::from("slurp -f '%o@%X,%Y,%W,%H'"), presets: Vec::new(), presets_command: None }
+        Self {
+            command: String::from("slurp -f '%o@%X,%Y,%W,%H'"),
+            presets: Vec::new(),
+            presets_command: None,
+            presets_heading: String::from("Presets"),
+            selection_heading: String::from("Custom region"),
+        }
     }
 }
 
