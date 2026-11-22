@@ -21,9 +21,12 @@ impl<'a> RegionView<'a> {
             .ok_or(format!("received invalid region command: {}", config.region.command))?;
         let regex = Regex::new(r"^.+@-?\d+,-?\d+,\d+,\d+$").map_err(|err| format!("received invalid regex: {err}"))?;
 
-        let presets = config
-            .region
-            .presets
+        let mut presets = config.region.presets.clone();
+        if let Some(presets_command) = &config.region.presets_command {
+            presets.extend(run_presets_command(presets_command));
+        }
+
+        let presets = presets
             .iter()
             .filter(|preset| {
                 let valid = regex.is_match(preset.region.trim());
@@ -60,6 +63,43 @@ impl<'a> RegionView<'a> {
 
         button
     }
+}
+
+/// Run the presets command and parse its `<name><TAB><region>` lines.
+/// Any failure is logged and yields no presets, so the region page still opens.
+fn run_presets_command(presets_command: &str) -> Vec<RegionPreset> {
+    let Some(args) = shlex::split(presets_command).filter(|args| !args.is_empty()) else {
+        log::error!("received invalid region presets command: {presets_command}");
+        return Vec::new();
+    };
+
+    let mut command = Command::new(&args[0]);
+    command.args(&args[1..]);
+    log::info!("using {command:?} as region presets command");
+
+    let output = match command.output() {
+        Ok(output) if output.status.success() => output,
+        Ok(output) => {
+            log::error!("region presets command exited with {}", output.status);
+            return Vec::new();
+        }
+        Err(err) => {
+            log::error!("error whilst running region presets command: {err}");
+            return Vec::new();
+        }
+    };
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .filter_map(|line| match line.split_once('\t') {
+            Some((name, region)) => Some(RegionPreset { name: name.trim().to_string(), region: region.to_string() }),
+            None => {
+                log::warn!("skipping region presets command line '{line}': expected '<name><TAB><region>'");
+                None
+            }
+        })
+        .collect()
 }
 
 impl View for RegionView<'_> {

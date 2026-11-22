@@ -233,6 +233,10 @@ region:
   #   - name: Centre 16:9
   #     region: DP-1@1280,0,2560,1440
   presets: []
+  # command which prints more presets when the picker opens, shown after the presets above
+  # one preset per line as <name><TAB><region> (e.g. "Centre 16:9\tDP-1@1280,0,2560,1440"),
+  # so the presets can live in a file of your own
+  presets_command: null
 
 # hide the token restore checkbox and use the default value instead
 hide_token_restore: false

@@ -215,11 +215,16 @@ pub struct RegionConfig {
     ///
     /// clicking a preset shares its region right away, without running the region command
     pub presets: Vec<RegionPreset>,
+    /// command which prints more region presets when the picker opens
+    ///
+    /// one preset per line in the format <name><TAB><region> (e.g. "Centre 16:9\tDP-1@1280,0,2560,1440"),
+    /// shown after the presets from the `presets` list. use it to keep the presets in a file of your own
+    pub presets_command: Option<String>,
 }
 
 impl Default for RegionConfig {
     fn default() -> Self {
-        Self { command: String::from("slurp -f '%o@%X,%Y,%W,%H'"), presets: Vec::new() }
+        Self { command: String::from("slurp -f '%o@%X,%Y,%W,%H'"), presets: Vec::new(), presets_command: None }
     }
 }
 
