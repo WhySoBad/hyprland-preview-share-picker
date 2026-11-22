@@ -195,6 +195,12 @@ classes:
   notebook_page: page
   # css classname of the region selection button
   region_button: region-button
+  # css classname added to the region preset buttons (they also carry the region button class)
+  region_preset_button: region-preset-button
+  # css classname of the section headings on the region page
+  region_heading: region-heading
+  # css classname of the separator between the presets and the region selection
+  region_separator: region-separator
   # css classname of the button containing the session restore checkbox and label
   restore_button: restore-button
 
@@ -224,6 +230,21 @@ region:
   # the output needs to be in the <output>@<x>,<y>,<w>,<h> (e.g. DP-3@869,436,756,576) format
   # where x and y are relative to the top left corner of the output
   command: slurp -f '%o@%X,%Y,%W,%H'
+  # fixed regions shown as buttons next to the region selection button
+  # clicking a preset shares its region right away, in the same format as the command output
+  # example:
+  # presets:
+  #   - name: Centre 16:9
+  #     region: DP-1@1280,0,2560,1440
+  presets: []
+  # command which prints more presets when the picker opens, shown after the presets above
+  # one preset per line as <name><TAB><region> (e.g. "Centre 16:9\tDP-1@1280,0,2560,1440"),
+  # so the presets can live in a file of your own
+  presets_command: null
+  # headings of the two sections on the region page, shown only when there are presets
+  # an empty string hides a heading
+  presets_heading: Presets
+  selection_heading: Custom region
 
 # hide the token restore checkbox and use the default value instead
 hide_token_restore: false
