@@ -248,8 +248,10 @@ impl Default for RegionConfig {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, JsonSchema)]
+#[derive(Deserialize, Debug, Clone, JsonSchema, Default)]
 #[schemars(rename = "Region preset")]
+// a preset with a missing field is skipped with a warning instead of failing the whole config
+#[serde(default)]
 pub struct RegionPreset {
     /// label of the preset button
     pub name: String,
